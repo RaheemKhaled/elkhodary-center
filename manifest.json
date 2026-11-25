@@ -1,0 +1,24 @@
+{
+  "name": "نظام إدارة مركز صيانة السيارات وضبط الزوايا",
+  "short_name": "المركز",
+  "description": "نظام أوفلاين متكامل لإدارة مركز صيانة السيارات، الفواتير، المخزن، الموردين، والمزامنة مع Google Sheets",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0B1329",
+  "theme_color": "#2563EB",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

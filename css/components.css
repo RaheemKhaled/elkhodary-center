@@ -1,0 +1,799 @@
+/**
+ * مكونات الواجهة التفاعلية الخاصة:
+ * - لوحة الأرقام المصرية المخصصة (3 حروف + 4 أرقام)
+ * - شرائح الاختيار السريع (Chips)
+ * - النوافذ المنبثقة للتأكيد (Modals)
+ * - الإشعارات التنبيهية (Toasts)
+ */
+
+/* ========================================================
+   1. تصميم نمرة العربية المصرية (Egyptian License Plate)
+   ======================================================== */
+.egypt-plate-widget {
+  background: var(--bg-surface-elevated);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+
+.plate-preview-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+/* شكل النمرة المصرية الأصلي المتناسق والواضح */
+.egypt-plate-visual {
+  background: #FFFFFF;
+  border: 3.5px solid #0F172A;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* الشريط الأزرق العلوي لكلمة مصر / EGYPT */
+.plate-top-bar {
+  background: linear-gradient(180deg, #0284C7 0%, #0369A1 100%);
+  color: #FFFFFF;
+  height: 40px;
+  padding: 0 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 3px solid #0F172A;
+  box-sizing: border-box;
+}
+
+.plate-top-bar .country-ar {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.plate-top-bar .country-en {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  font-family: Arial, sans-serif;
+  line-height: 1;
+}
+
+/* جسم اللوحة السفلي: الحروف يميناً والأرقام يساراً مع فاصل واضح */
+.plate-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 10px 14px;
+  background: #FFFFFF;
+  min-height: 76px;
+  box-sizing: border-box;
+}
+
+.plate-letters-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  direction: rtl !important;
+}
+
+.plate-numbers-section {
+  display: flex !important;
+  flex-direction: row !important;
+  direction: ltr !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.plate-divider {
+  width: 3.5px;
+  height: 56px;
+  background: #0F172A;
+  border-radius: 2px;
+  margin: 0 10px;
+  flex-shrink: 0;
+}
+
+/* مربعات خانات الحروف والأرقام باللوحة */
+.plate-slot {
+  font-family: 'Segoe UI', 'Cairo', Tahoma, Arial, sans-serif;
+  width: 48px;
+  height: 60px;
+  background: #F8FAFC;
+  border: 2px dashed #94A3B8;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.plate-slot.filled {
+  background: #FFFFFF;
+  border: 2.5px solid #0F172A;
+  color: #0F172A;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  font-size: 36px;
+  font-weight: 900;
+}
+
+.plate-slot.empty {
+  color: #94A3B8;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* شريط حالة وتأكيد قراءة اللوحة */
+.plate-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  font-size: 16px;
+  font-weight: 800;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.plate-status-bar.valid {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1.5px solid #10B981;
+  color: #34D399;
+}
+
+.plate-status-bar.partial {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1.5px solid #3B82F6;
+  color: #93C5FD;
+}
+
+.plate-status-bar.empty {
+  background: rgba(100, 116, 139, 0.12);
+  border: 1.5px dashed #475569;
+  color: #94A3B8;
+}
+
+/* لوحات المفاتيح اللمسية المنظمة رأسياً */
+.plate-keypads {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.keypad-box {
+  background: var(--bg-input);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.keypad-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.keypad-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #93C5FD;
+  white-space: nowrap;
+}
+
+.keypad-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* أزرار الإجراءات في هيدر اللوحة (تراجع / مسح) */
+.keypad-action-btn {
+  white-space: nowrap !important;
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.keypad-action-btn:active {
+  transform: scale(0.95);
+}
+
+.keypad-action-btn.backspace-btn {
+  background: #334155;
+  border: 2px solid #64748B;
+  color: #F8FAFC;
+}
+
+.keypad-action-btn.backspace-btn:hover {
+  background: #475569;
+  border-color: #94A3B8;
+}
+
+.keypad-action-btn.clear-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 2px solid #EF4444;
+  color: #FCA5A5;
+}
+
+.keypad-action-btn.clear-btn:hover {
+  background: #DC2626;
+  border-color: #DC2626;
+  color: #FFFFFF;
+}
+
+.keypad-action-btn.clear-all-btn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 2px solid #F59E0B;
+  color: #FCD34D;
+}
+
+.keypad-action-btn.clear-all-btn:hover {
+  background: #D97706;
+  border-color: #D97706;
+  color: #FFFFFF;
+}
+
+/* شبكة أزرار المفاتيح اللمسية */
+.keypad-grid-letters {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  direction: rtl;
+}
+
+.keypad-grid-numbers {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  direction: ltr !important;
+}
+
+.key-btn {
+  font-family: 'Segoe UI', 'Cairo', Tahoma, Arial, sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  height: 52px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-surface);
+  color: #FFFFFF;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+  user-select: none;
+  line-height: 1;
+  white-space: nowrap;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+/* تنسيق النمط المدمج لشاشات اللابتوب لتجنب السكرول */
+.egypt-plate-widget.compact-mode {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.compact-mode .plate-preview-container {
+  margin-bottom: 8px;
+}
+
+.compact-mode .egypt-plate-visual {
+  max-width: 360px;
+}
+
+.compact-mode .plate-top-bar {
+  height: 32px;
+  padding: 0 12px;
+}
+
+.compact-mode .plate-top-bar .country-ar {
+  font-size: 20px;
+}
+
+.compact-mode .plate-top-bar .country-en {
+  font-size: 13px;
+}
+
+.compact-mode .plate-body {
+  min-height: 58px;
+  padding: 6px 10px;
+}
+
+.compact-mode .plate-slot {
+  width: 36px;
+  height: 46px;
+}
+
+.compact-mode .plate-slot.filled {
+  font-size: 28px;
+}
+
+.compact-mode .plate-slot.empty {
+  font-size: 16px;
+}
+
+.compact-mode .plate-divider {
+  height: 42px;
+  margin: 0 6px;
+}
+
+.compact-mode .plate-status-bar {
+  padding: 4px 8px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.compact-mode .plate-keypads {
+  gap: 8px;
+}
+
+.keypad-box.compact {
+  padding: 8px 10px;
+}
+
+.keypad-box.compact .keypad-header {
+  margin-bottom: 6px;
+}
+
+.keypad-box.compact .keypad-title {
+  font-size: 14px;
+}
+
+.keypad-box.compact .keypad-action-btn {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.keypad-box.compact .key-btn {
+  height: 36px;
+  font-size: 20px;
+}
+
+.key-btn:active {
+  transform: scale(0.93);
+}
+
+.key-btn:hover {
+  background: var(--primary);
+  border-color: #60A5FA;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.key-btn.action-key-btn {
+  font-size: 20px;
+  background: #334155;
+  border-color: #475569;
+}
+
+.key-btn.action-key-btn:hover {
+  background: #475569;
+}
+
+.key-btn.action-clear-all-grid {
+  font-size: 14px;
+  font-weight: 800;
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #EF4444;
+  color: #FCA5A5;
+}
+
+.key-btn.action-clear-all-grid:hover {
+  background: #DC2626;
+  color: #FFFFFF;
+}
+
+/* ========================================================
+   2. شرائح الاختيار الكبيرة (Chips / Multi-select)
+   ======================================================== */
+.chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.choice-chip {
+  background: var(--bg-surface-elevated);
+  border: 3px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 22px;
+  font-size: var(--font-base);
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+  user-select: none;
+  min-height: 58px;
+}
+
+.choice-chip:hover {
+  border-color: #60A5FA;
+  transform: translateY(-2px);
+}
+
+.choice-chip.selected {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.choice-chip .chip-price {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-sm);
+  color: #FCD34D;
+}
+
+/* ========================================================
+   3. النوافذ المنبثقة للتأكيد والإلغاء (Modals)
+   ======================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 19, 41, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.25s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  border: 3px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 650px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  padding: 32px;
+  transform: scale(0.95);
+  transition: transform 0.25s ease;
+}
+
+.modal-overlay.active .modal-content {
+  transform: scale(1);
+}
+
+.modal-title {
+  font-size: var(--font-lg);
+  font-weight: 900;
+  color: #FFFFFF;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-body {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+/* ========================================================
+   4. الإشعارات التنبيهية الكبيرة (Toasts)
+   ======================================================== */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: var(--bg-surface-elevated);
+  border: 3px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px 24px;
+  font-size: var(--font-base);
+  font-weight: 800;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-lg);
+  animation: slideInLeft 0.3s ease;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast.success { border-color: #10B981; background: #064E3B; }
+.toast.warning { border-color: #F59E0B; background: #78350F; }
+.toast.danger { border-color: #EF4444; background: #7F1D1D; }
+.toast.info { border-color: #3B82F6; background: #1E3A8A; }
+
+/* شريط البحث السريع المتجاوب */
+.search-bar-container {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  right: 20px;
+  font-size: 28px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-control {
+  padding-right: 64px !important;
+  font-size: var(--font-md) !important;
+  height: 72px;
+  border-radius: var(--radius-lg) !important;
+  border-color: #3B82F6 !important;
+}
+
+/* قائمة الاقتراحات التلقائية للعملاء */
+.cust-suggestion-item {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cust-suggestion-item:hover {
+  background: rgba(56, 189, 248, 0.15) !important;
+}
+
+.cust-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+/* ========================================================
+   تنسيقات شاشة الكاشير المدمجة (Compact POS Services Layout)
+   مستلهمة من بطاقات العمليات السريعة وموزعة في صفين متراصين
+   ======================================================== */
+.pos-services-compact-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pos-services-row-top {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 8px;
+}
+
+.pos-services-row-bottom {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .pos-services-row-top,
+  .pos-services-row-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pos-card {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.pos-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.pos-card-header .pos-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* بطاقة ضبط الزوايا - Accent Blue */
+.pos-card.pos-card-alignment {
+  border-color: rgba(59, 130, 246, 0.45);
+}
+.pos-card.pos-card-alignment .pos-card-header {
+  color: #60A5FA;
+}
+
+.pos-tile-group {
+  display: flex;
+  gap: 6px;
+}
+
+.pos-tile-btn {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 4px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.pos-tile-btn:hover {
+  border-color: #60A5FA;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.pos-tile-btn.active {
+  background: #1E3A8A !important;
+  border-color: #3B82F6 !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.45);
+}
+
+.pos-tile-btn .tile-label {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.pos-tile-btn .tile-price {
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #60A5FA;
+  margin-top: 2px;
+  line-height: 1.1;
+}
+
+.pos-tile-btn.active .tile-price {
+  color: #93C5FD !important;
+}
+
+/* بطاقة الترصيص - Accent Amber */
+.pos-card.pos-card-balancing {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+.pos-card.pos-card-balancing .pos-card-header {
+  color: #FBBF24;
+}
+
+/* بطاقة الكاوتش - Accent Emerald */
+.pos-card.pos-card-tires {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+.pos-card.pos-card-tires .pos-card-header {
+  color: #34D399;
+}
+
+/* بطاقة العفشة - Accent Purple */
+.pos-card.pos-card-suspension {
+  border-color: rgba(139, 92, 246, 0.45);
+}
+.pos-card.pos-card-suspension .pos-card-header {
+  color: #C084FC;
+}
+
+/* بطاقة قطع الغيار - Accent Sky Blue */
+.pos-card.pos-card-parts {
+  border-color: rgba(14, 165, 233, 0.45);
+}
+.pos-card.pos-card-parts .pos-card-header {
+  color: #38BDF8;
+}
+
+/* حاوية العناصر المضافة */
+.pos-added-items-card {
+  background: var(--bg-surface-elevated);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.pos-added-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 5px 10px;
+  margin-bottom: 4px;
+  transition: all 0.15s ease;
+}
+
+.pos-added-item-row:hover {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+

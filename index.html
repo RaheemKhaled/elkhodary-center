@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>نظام إدارة مركز صيانة السيارات وضبط الزوايا</title>
+  
+  <!-- إعدادات تطبيق الويب التقدمي (PWA) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563EB">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="المركز">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+
+  <!-- ملفات التنسيق والشاشات مع كاش باستر لضمان تحميل التحديثات فوراً -->
+  <link rel="stylesheet" href="css/main.css?v=30">
+  <link rel="stylesheet" href="css/components.css?v=30">
+  <link rel="stylesheet" href="css/wizard.css?v=30">
+  <link rel="stylesheet" href="css/print.css?v=30">
+</head>
+<body>
+
+  <!-- شريط الحالة العلوي الثابت -->
+  <header class="top-header no-print">
+    <div class="brand-section" id="brandLogoBtn" title="العودة للشاشة">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #60A5FA;">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">الـمـركـز</div>
+        <div class="brand-subtitle">صيانة السيارات وضبط الزوايا والعفشة</div>
+      </div>
+    </div>
+
+    <!-- شارة الدور الحالي والتبديل بين الكاشير والمدير -->
+    <div id="headerRoleBadgeMount" style="display: flex; align-items: center; gap: 10px;"></div>
+
+    <!-- مؤشر المزامنة التلقائية والاتصال -->
+    <div class="sync-badge-container">
+      <div id="topSyncStatusBadge" class="status-badge online" title="اضغط لتشغيل المزامنة الفورية مع Google Sheets">
+        <span class="status-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10B981;"></span>
+        <span>متصل</span>
+      </div>
+    </div>
+
+    <!-- أزرار التنقل السريع -->
+    <div class="header-actions" id="headerNavActions">
+      <button type="button" class="btn btn-secondary btn-icon-only" id="navHomeBtn" title="لوحة المدير الرئيسية">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </button>
+      <button type="button" class="btn btn-secondary btn-icon-only" id="navCashierBtn" title="واجهة الكاشير">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </button>
+      <button type="button" class="btn btn-secondary btn-icon-only" id="navSettingsBtn" title="الإعدادات">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- الحاوية الأساسية لتطبيقات الشاشات -->
+  <main class="app-container no-print" id="mainAppContainer">
+    <div style="text-align: center; padding: 60px; font-size: 20px; font-weight: 600; color: #94A3B8;">
+      جاري تهيئة النظام وقاعدة البيانات...
+    </div>
+  </main>
+
+  <!-- مكان طباعة الفواتير (يظهر فقط عند أمر الطباعة window.print) -->
+  <div id="printableInvoiceContainer" class="printable-invoice-container"></div>
+
+  <!-- حاوية إشعارات التنبيه (Toasts) -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- تسجيل Service Worker ليعمل التطبيق بدون إنترنت مع التحديث التلقائي -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=21')
+          .then(reg => {
+            console.log('✅ تم تفعيل Service Worker للعمل أوفلاين بنجاح', reg.scope);
+            reg.update();
+          })
+          .catch(err => console.log('Service Worker failed:', err));
+      });
+    }
+
+    // زر طوارئ ذكي لتخطي أي تعليق في الكاش القديم
+    setTimeout(() => {
+      const container = document.getElementById('mainAppContainer');
+      if (container && container.textContent.includes('جاري تشغيل النظام') && (!window.app || !window.app.currentView)) {
+        container.innerHTML = `
+          <div class="card" style="border-color: #3B82F6; text-align: center; padding: 40px 24px; max-width: 540px; margin: 40px auto; box-shadow: var(--shadow-xl);">
+            <div style="font-size: 50px; margin-bottom: 12px;">🔧</div>
+            <h2 style="color: #93C5FD; font-size: 24px; font-weight: 900; margin-bottom: 12px;">نظام إدارة مركز الصيانة</h2>
+            <p style="font-size: 17px; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6;">
+              اضغط على الزر أدناه لبدء التشغيل الفوري ومسح كاش التحديثات القديمة:
+            </p>
+            <button type="button" class="btn btn-primary" id="btnForceClearCacheReload" style="width: 100%; min-height: 52px; font-size: 20px; font-weight: 900; justify-content: center; gap: 10px;">
+              <span>🚀</span>
+              <span>دخول وتشغيل النظام الآن</span>
+            </button>
+          </div>
+        `;
+        document.getElementById('btnForceClearCacheReload')?.addEventListener('click', async () => {
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+          }
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const r of registrations) await r.unregister();
+          }
+          window.location.reload(true);
+        });
+      }
+    }, 2500);
+  </script>
+
+  <!-- المحرك الأساسي للجافاسكربت -->
+  <script type="module" src="js/app.js?v=30"></script>
+</body>
+</html>

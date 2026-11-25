@@ -1,0 +1,278 @@
+/**
+ * تنسيقات معالج إنشاء الفاتورة خطوة بخطوة (Wizard)
+ * مصمم خصيصاً للوضوح وسهولة الاستخدام للفنيين
+ */
+
+.wizard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 140px);
+  position: relative;
+  padding-bottom: 120px; /* مساحة للشريط السفلي الثابت */
+}
+
+/* شريط تقدم الخطوات */
+.wizard-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  margin-bottom: 28px;
+  position: sticky;
+  top: 90px;
+  z-index: 90;
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.step-item.active {
+  opacity: 1;
+}
+
+.step-item.completed {
+  opacity: 0.9;
+}
+
+.step-circle {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-elevated);
+  border: 3px solid var(--border-color);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-base);
+  font-weight: 900;
+  transition: all 0.2s ease;
+}
+
+.step-item.active .step-circle {
+  background: var(--primary);
+  border-color: #60A5FA;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.step-item.completed .step-circle {
+  background: var(--success);
+  border-color: #34D399;
+}
+
+.step-label {
+  font-size: var(--font-base);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.step-connector {
+  flex: 1;
+  height: 4px;
+  background: var(--border-color);
+  margin: 0 16px;
+  min-width: 24px;
+}
+
+.step-connector.completed {
+  background: var(--success);
+}
+
+/* محتوى الخطوة */
+.wizard-step-content {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.wizard-step-content.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.step-header-box {
+  background: var(--bg-surface);
+  border-right: 6px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.step-title {
+  font-size: var(--font-lg);
+  font-weight: 900;
+  color: #FFFFFF;
+}
+
+.step-subtitle {
+  font-size: var(--font-base);
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* الشريط السفلي الثابت للتنقل بين الخطوات */
+.wizard-footer-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(20, 33, 61, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 3px solid var(--border-color);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 150;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.nav-summary-badge {
+  font-size: var(--font-md);
+  font-weight: 900;
+  color: #38BDF8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* كروت الخدمات في الخطوة 2 */
+.service-card-item {
+  background: var(--bg-surface-elevated);
+  border: 3px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.service-card-item.selected {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.service-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.service-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.service-checkbox {
+  width: 32px;
+  height: 32px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.service-name {
+  font-size: var(--font-md);
+  font-weight: 800;
+  color: #FFFFFF;
+}
+
+.service-price-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.service-price-input {
+  width: 140px;
+  font-size: var(--font-base);
+  font-weight: 800;
+  text-align: center;
+  padding: 8px 12px;
+}
+
+/* صندوق الإضافات التابعة للخدمة */
+.service-addons-container {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 2px dashed var(--border-color);
+  padding-right: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ملخص الحسابات في الخطوة الأخيرة */
+.calc-summary-card {
+  background: var(--bg-input);
+  border: 3px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-base);
+}
+
+.calc-row.total-highlight {
+  font-size: var(--font-lg);
+  font-weight: 900;
+  color: #38BDF8;
+  border-bottom: 3px solid var(--border-focus);
+  padding: 18px 0;
+}
+
+.calc-row.paid-highlight {
+  font-size: var(--font-md);
+  font-weight: 800;
+  color: #34D399;
+}
+
+.calc-row.remaining-highlight {
+  font-size: var(--font-md);
+  font-weight: 800;
+  color: #F87171;
+}
+
+@media (max-width: 768px) {
+  .wizard-stepper {
+    padding: 12px;
+  }
+  .step-label {
+    display: none;
+  }
+  .wizard-footer-nav {
+    padding: 12px 16px;
+  }
+  .nav-summary-badge {
+    font-size: var(--font-sm);
+  }
+}

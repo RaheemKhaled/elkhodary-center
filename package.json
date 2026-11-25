@@ -1,0 +1,33 @@
+{
+  "name": "almarkaz-auto",
+  "version": "1.0.0",
+  "description": "نظام إدارة مركز صيانة السيارات وضبط الزوايا",
+  "main": "desktop/main.js",
+  "type": "module",
+  "scripts": {
+    "start": "node desktop/server.js",
+    "desktop": "electron desktop/main.js",
+    "build:win": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.almarkaz.auto",
+    "productName": "المركز - إدارة صيانة السيارات",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "icons/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "المركز - إدارة صيانة السيارات"
+    }
+  },
+  "keywords": ["pos", "automotive", "workshop"],
+  "author": "المركز",
+  "license": "ISC"
+}

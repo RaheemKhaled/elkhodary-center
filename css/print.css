@@ -1,0 +1,281 @@
+/**
+ * تنسيقات الطباعة (Print Stylesheet)
+ * - فاتورة نظامية قياسية مقاس A4 (PDF / طابعات الليزر والألوان)
+ * - بون حراري رول 80mm (Thermal Receipt)
+ */
+
+/* إخفاء عناصر الطباعة على الشاشة العادية */
+.printable-invoice-container {
+  display: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 8mm 10mm;
+}
+
+@media print {
+  /* إخفاء كل محتوى الصفحة وإظهار الفاتورة فقط */
+  body > *:not(#printableInvoiceContainer) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* إظهار الحاوية الرئيسية للفاتورة */
+  #printableInvoiceContainer {
+    display: block !important;
+    visibility: visible !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99999 !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  .printable-invoice-container {
+    display: block !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  /* 1. تنسيق البون الحراري (Thermal Receipt 80mm) */
+  .printable-invoice-container.thermal-mode {
+    width: 74mm;
+    margin: 0 auto;
+    font-family: 'Cairo', Tahoma, monospace;
+    font-size: 13px;
+    line-height: 1.35;
+    border: 1.5px dashed #000;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
+  .thermal-header {
+    text-align: center;
+    border-bottom: 2px dashed #000;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+
+  .thermal-title {
+    font-size: 18px;
+    font-weight: 900;
+    margin-bottom: 2px;
+  }
+
+  .thermal-subtitle {
+    font-size: 12px;
+  }
+
+  .thermal-meta-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+    font-size: 12px;
+  }
+
+  .thermal-plate-box {
+    text-align: center;
+    border: 2px solid #000;
+    padding: 4px;
+    margin: 6px 0;
+    font-size: 16px;
+    font-weight: 900;
+    background: #F3F4F6 !important;
+  }
+
+  .thermal-maintenance-box {
+    border: 1px dotted #000;
+    padding: 5px;
+    margin: 6px 0;
+    font-size: 11px;
+    background: #FAFAFA !important;
+  }
+
+  .thermal-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6px 0;
+  }
+
+  .thermal-table th,
+  .thermal-table td {
+    border-bottom: 1px dashed #000;
+    padding: 4px 0;
+    text-align: right;
+    font-size: 12px;
+  }
+
+  .thermal-table th:last-child,
+  .thermal-table td:last-child {
+    text-align: left;
+  }
+
+  .thermal-totals-section {
+    border-top: 2px dashed #000;
+    padding-top: 6px;
+    margin-top: 6px;
+  }
+
+  .thermal-total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 3px;
+  }
+
+  .thermal-total-row.grand-total {
+    font-size: 17px;
+    font-weight: 900;
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    padding: 4px 0;
+  }
+
+  .thermal-footer {
+    text-align: center;
+    margin-top: 10px;
+    border-top: 1px dashed #000;
+    padding-top: 6px;
+    font-size: 11px;
+  }
+
+  /* 2. تنسيق الفاتورة النظامية A4 المعتمدة (مقاس A4 القياسي 210mm × 297mm) */
+  .printable-invoice-container.standard-mode {
+    width: 100%;
+    max-width: 190mm;
+    margin: 0 auto;
+    font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+    border: 2px solid #000000;
+    border-radius: 4px;
+    padding: 8mm 10mm;
+    box-sizing: border-box;
+    display: block !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  .standard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2.5px solid #000;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  .standard-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: #F8FAFC !important;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border: 1.5px solid #000;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  .standard-maintenance-section {
+    background: #FFFFFF;
+    border: 1.5px solid #000;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .standard-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 10px 0;
+    border: 1.5px solid #000;
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  .standard-table thead {
+    display: table-header-group !important;
+  }
+
+  .standard-table tbody {
+    display: table-row-group;
+  }
+
+  .standard-table th,
+  .standard-table td {
+    border: 1px solid #000;
+    padding: 6px 8px;
+    text-align: right;
+    font-size: 12.5px;
+  }
+
+  .standard-table tbody tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .standard-table th {
+    background: #E2E8F0 !important;
+    font-weight: 900;
+    font-size: 12.5px;
+  }
+
+  .standard-table td:last-child {
+    text-align: left;
+  }
+
+  .standard-bottom-block {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-top: 10px;
+  }
+
+  .standard-totals-box {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: 1.5px solid #000;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .standard-footer {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border-top: 2px solid #000;
+    padding-top: 8px;
+    margin-top: 6px;
+    font-size: 11.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
