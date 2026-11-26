@@ -1,6 +1,6 @@
 {
   "name": "almarkaz-auto",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "نظام إدارة مركز صيانة السيارات وضبط الزوايا",
   "main": "desktop/main.js",
   "type": "module",

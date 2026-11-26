@@ -363,7 +363,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
         </div>
 
         <div class="thermal-footer">
-          <div>الضمان ساري على ضبط الزوايا والعفشة لمدة 7 أيام</div>
+          <div>الضمان ساري على ضبط الزوايا والترصيص لمدة 3 أيام</div>
           <div style="font-weight: bold; margin-top: 3px;">شكراً لثقتكم ونتمنى لكم قيادة آمنة 🔧</div>
         </div>
       `;
@@ -480,7 +480,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
                   📌 شروط الضمان والملاحظات الهامة:
                 </div>
                 <div style="line-height: 1.6; color: #334155;">
-                  <div>• الضمان ساري على أعمال ضبط الزوايا والعفشة لمدة <strong>7 أيام</strong> من تاريخ الفاتورة.</div>
+                  <div>• الضمان ساري على أعمال ضبط الزوايا والترصيص لمدة <strong>3 أيام</strong> من تاريخ الفاتورة.</div>
                   <div>• يرجى الاحتفاظ بالفاتورة الأصلية عند أي مراجعة أو فحص بالمركز.</div>
                   <div>• قطع الغيار المباعة تخضع لضمان الشركة المصنعة أو الوكيل.</div>
                   <div>• المركز غير مسؤول عن أي أعطال ناتجة عن سوء الاستخدام أو الحوادث.</div>
@@ -1025,7 +1025,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
         <div class="summary-and-warranty-section" style="display: flex; justify-content: space-between; gap: 10px;">
           <div style="width: 52%; border: 1px solid #CCC; padding: 6px 8px; border-radius: 4px; font-size: 10.5px; background: #FAFAFA; line-height: 1.4;">
             <div style="font-weight: bold; margin-bottom: 2px;">📌 شروط الضمان:</div>
-            <div>• الضمان ساري على ضبط الزوايا والعفشة لمدة 7 أيام من تاريخ الفاتورة.</div>
+            <div>• الضمان ساري على ضبط الزوايا والترصيص لمدة 3 أيام من تاريخ الفاتورة.</div>
             <div>• يرجى الاحتفاظ بالفاتورة عند أي مراجعة بالمركز.</div>
           </div>
 
@@ -1117,7 +1117,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
       </div>
 
       <div style="text-align: center; margin-top: 8px; font-size: 10.5px; border-top: 1px dashed #000; padding-top: 4px;">
-        <div>الضمان ساري على الزوايا والعفشة 7 أيام</div>
+        <div>الضمان ساري على الزوايا والترصيص 3 أيام</div>
         <div style="font-weight: bold; margin-top: 2px;">شكراً لزيارتكم 🔧</div>
       </div>
     `;
