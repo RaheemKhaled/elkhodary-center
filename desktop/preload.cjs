@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   // حفظ الفاتورة PDF في فولدر الأسبوع وفتحها
   saveInvoicePdf: (payload) => ipcRenderer.invoke('invoice:savePdf', payload),
+  saveReportPdf: (payload) => ipcRenderer.invoke('report:savePdf', payload),
   // فتح ملف PDF محفوظ مسبقاً (يرجع false لو الملف مش موجود)
   openPdf: (filePath) => ipcRenderer.invoke('invoice:openPdf', filePath),
   // فتح فولدر الفواتير

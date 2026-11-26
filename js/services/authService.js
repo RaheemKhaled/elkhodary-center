@@ -10,12 +10,14 @@ class AuthService {
     this.ROLE_CASHIER = 'cashier';
     this.ROLE_MANAGER = 'manager';
     this.SESSION_KEY = 'almarkaz_session';
+    // الجلسة بتتمسح مع قفل البرنامج: كل تشغيل لازم تسجيل دخول (ومسح أي جلسة قديمة كانت محفوظة دايماً)
+    try { localStorage.removeItem(this.SESSION_KEY); } catch (e) {}
   }
 
   // المستخدم المسجل حالياً
   getCurrentUser() {
     try {
-      const raw = localStorage.getItem(this.SESSION_KEY);
+      const raw = sessionStorage.getItem(this.SESSION_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -79,7 +81,7 @@ class AuthService {
       loggedInAt: new Date().toISOString()
     };
 
-    localStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
+    sessionStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
     window.dispatchEvent(new CustomEvent('auth:userChanged', { detail: { user: session } }));
     window.dispatchEvent(new CustomEvent('auth:roleChanged', { detail: { role: session.role } }));
 
@@ -88,7 +90,7 @@ class AuthService {
 
   // تسجيل الخروج
   logout() {
-    localStorage.removeItem(this.SESSION_KEY);
+    sessionStorage.removeItem(this.SESSION_KEY);
     window.dispatchEvent(new CustomEvent('auth:userChanged', { detail: { user: null } }));
     window.dispatchEvent(new CustomEvent('auth:roleChanged', { detail: { role: null } }));
   }
@@ -136,7 +138,7 @@ class AuthService {
       // تحديث الجلسة الحالية لو هو نفس المستخدم الحالي
       const current = this.getCurrentUser();
       if (current && current.id === userData.id) {
-        localStorage.setItem(this.SESSION_KEY, JSON.stringify({
+        sessionStorage.setItem(this.SESSION_KEY, JSON.stringify({
           ...current,
           name,
           username,

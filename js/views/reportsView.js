@@ -5,9 +5,19 @@
 import { reportService } from '../services/reportService.js';
 import { inventoryService } from '../services/inventoryService.js';
 import { supplierService } from '../services/supplierService.js';
+import { reportPdfService } from '../services/reportPdfService.js';
+import { showExpenseModal, showCollectDebtModal } from '../components/financeModals.js';
+import { PAYMENT_METHODS, EXPENSE_CATEGORIES } from '../services/financeService.js';
 
 export const reportsView = {
   async render(container, selectedPeriod = 'today') {
+    // الراوتر بيبعت {} لما الشاشة تتفتح: نبدأ بالنهارده
+    if (!selectedPeriod || (typeof selectedPeriod === 'object' && !selectedPeriod.from && !selectedPeriod.to)) selectedPeriod = 'today';
+    if (typeof selectedPeriod === 'string' && selectedPeriod.includes('|')) {
+      const [from, to] = selectedPeriod.split('|');
+      selectedPeriod = { from, to };
+    }
+    this.period = selectedPeriod;
     const [revenue, topServices, topCustomers, workerStats, lowStockParts, suppliers] = await Promise.all([
       reportService.getRevenueReport(selectedPeriod),
       reportService.getTopServices(selectedPeriod),
@@ -19,6 +29,9 @@ export const reportsView = {
 
     const totalSuppRemaining = suppliers.reduce((sum, s) => sum + (s.stats.totalRemaining || 0), 0);
 
+    const isCustom = typeof selectedPeriod === 'object';
+    const sum = revenue.summary;
+    this.debtInvoices = new Map(sum.debtors.flatMap(x => x.invoices).map(i => [i.id, i]));
     const periodLabels = {
       today: 'اليوم',
       week: 'الأسبوع الحالي',
@@ -32,7 +45,7 @@ export const reportsView = {
           <div>
             <h1 style="font-size: 34px; font-weight: 900; color: #FFFFFF;">📊 التقارير والإحصائيات</h1>
             <p style="font-size: 20px; color: var(--text-muted);">
-              تقرير: <strong style="color: #38BDF8;">${periodLabels[selectedPeriod]}</strong>
+              تقرير: <strong style="color: #38BDF8;">${sum.range.label}</strong>
             </p>
           </div>
           <div style="display: flex; gap: 10px;">
@@ -40,19 +53,29 @@ export const reportsView = {
             <button type="button" class="btn ${selectedPeriod === 'week' ? 'btn-primary' : 'btn-secondary'} btn-period" data-period="week">الأسبوع</button>
             <button type="button" class="btn ${selectedPeriod === 'month' ? 'btn-primary' : 'btn-secondary'} btn-period" data-period="month">الشهر</button>
             <button type="button" class="btn ${selectedPeriod === 'all' ? 'btn-primary' : 'btn-secondary'} btn-period" data-period="all">الكل</button>
-            <button type="button" class="btn btn-secondary" id="btnPrintReport" style="padding: 10px 16px;">🖨️ طباعة</button>
+            <button type="button" class="btn btn-success" id="btnPrintReport" style="padding: 10px 16px; font-weight: 800;">📄 تقرير PDF</button>
           </div>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: -10px 0 18px; font-weight: 700; color: var(--text-secondary);">
+          📅 من تاريخ لتاريخ:
+          <input type="date" id="repFrom" class="form-control" value="${isCustom ? sum.range.from : ''}" style="width: 170px; height: 42px; direction: ltr;">
+          <span>إلى</span>
+          <input type="date" id="repTo" class="form-control" value="${isCustom ? sum.range.to : ''}" style="width: 170px; height: 42px; direction: ltr;">
+          <button type="button" class="btn ${isCustom ? 'btn-primary' : 'btn-secondary'}" id="btnRepCustom">عرض</button>
+          <button type="button" class="btn btn-danger" id="btnRepExpense" style="margin-inline-start: auto; font-weight: 800;">💸 تسجيل مصروف</button>
+        </div>
+        <div style="display: none;">
         </div>
 
         <!-- بطاقات الإيرادات مقسمة -->
         <div class="grid-4" style="margin-bottom: 20px;">
           <div class="card" style="margin: 0; padding: 20px; border-color: #3B82F6;">
-            <div style="font-size: 16px; color: var(--text-muted); font-weight: 700;">💰 إجمالي الإيرادات</div>
+            <div style="font-size: 16px; color: var(--text-muted); font-weight: 700;">💰 المحصّل فعلاً (الإيراد)</div>
             <div style="font-size: 32px; font-weight: 800; color: #38BDF8; margin-top: 6px; font-family: monospace;">
               ${revenue.totalRevenue} <small style="font-size: 16px;">ج.م</small>
             </div>
             <div style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">
-              عدد الفواتير: ${revenue.invoicesCount} فاتورة
+              ${revenue.invoicesCount} فاتورة بقيمة ${revenue.salesTotal} ج.م${revenue.collectedOldDebt ? ` — منها ${revenue.collectedOldDebt} ج تحصيل آجل قديم` : ''}
             </div>
           </div>
 
@@ -87,6 +110,54 @@ export const reportsView = {
           </div>
         </div>
 
+        <!-- المصروفات والصافي والآجل -->
+        <div class="grid-4" style="margin-bottom: 20px;">
+          <div class="card" style="margin: 0; padding: 20px; border-color: #EF4444;">
+            <div style="font-size: 16px; color: var(--text-muted); font-weight: 700;">💸 المصروفات</div>
+            <div style="font-size: 30px; font-weight: 800; color: #F87171; margin-top: 6px;">${revenue.expensesTotal} <small style="font-size: 16px;">ج.م</small></div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">${Object.entries(sum.byCategory).map(([k, v]) => `${EXPENSE_CATEGORIES[k]?.label || k}: ${v}`).join(' | ') || 'مفيش مصروفات'}</div>
+          </div>
+          <div class="card" style="margin: 0; padding: 20px; border-color: #10B981;">
+            <div style="font-size: 16px; color: var(--text-muted); font-weight: 700;">✅ الصافي</div>
+            <div style="font-size: 30px; font-weight: 800; color: ${revenue.netTotal >= 0 ? '#34D399' : '#F87171'}; margin-top: 6px;">${revenue.netTotal} <small style="font-size: 16px;">ج.م</small></div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">كاش ${sum.net.cash} | فودافون ${sum.net.vodafone} | إنستا ${sum.net.insta}</div>
+          </div>
+          <div class="card" style="margin: 0; padding: 20px; border-color: #F59E0B;">
+            <div style="font-size: 16px; color: var(--text-muted); font-weight: 700;">🧾 آجل جديد في الفترة</div>
+            <div style="font-size: 30px; font-weight: 800; color: #FBBF24; margin-top: 6px;">${revenue.newCredit} <small style="font-size: 16px;">ج.م</small></div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">مش محسوب في الإيراد لحد ما يتسدد</div>
+          </div>
+          <div class="card" style="margin: 0; padding: 20px; border-color: #EF4444; background: rgba(239,68,68,0.06);">
+            <div style="font-size: 16px; color: var(--text-muted); font-weight: 700;">⏳ إجمالي الآجل على العملاء</div>
+            <div style="font-size: 30px; font-weight: 800; color: #F87171; margin-top: 6px;">${revenue.outstandingCredit} <small style="font-size: 16px;">ج.م</small></div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">${sum.debtors.length} عميل</div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 24px;">
+          <div class="card" style="margin: 0;">
+            <h2 class="card-title"><span>⏳</span><span>العملاء اللي عليهم آجل</span></h2>
+            ${sum.debtors.length ? `<div class="table-container"><table class="data-table"><thead><tr><th>العميل</th><th>المتبقي</th><th></th></tr></thead><tbody>
+              ${sum.debtors.map(dbt => dbt.invoices.map(inv => `<tr>
+                <td style="font-weight: 800;">${dbt.name}<div style="font-size: 13px; color: var(--text-muted); direction: ltr; text-align: right;">${dbt.phone || ''} — ${inv.id}</div></td>
+                <td style="color: #F87171; font-weight: 900; font-size: 18px;">${inv.remainingBalance} ج.م</td>
+                <td><button type="button" class="btn btn-success btn-rep-collect" data-inv-id="${inv.id}" style="font-weight: 800;">💰 تحصيل</button></td>
+              </tr>`).join('')).join('')}
+            </tbody></table></div>` : '<div style="color: var(--text-muted); padding: 12px;">مفيش آجل على حد ✅</div>'}
+          </div>
+          <div class="card" style="margin: 0;">
+            <h2 class="card-title"><span>💸</span><span>مصروفات الفترة (${sum.expenses.length})</span></h2>
+            ${sum.expenses.length ? `<div class="table-container"><table class="data-table"><thead><tr><th>التاريخ</th><th>البند</th><th>الطريقة</th><th>المبلغ</th></tr></thead><tbody>
+              ${sum.expenses.map(e => `<tr>
+                <td>${new Date(e.date).toLocaleDateString('ar-EG')}</td>
+                <td style="font-weight: 700;">${EXPENSE_CATEGORIES[e.category]?.label || e.category}${e.workerName ? ` (${e.workerName})` : ''}${e.description ? `<div style="font-size: 13px; color: var(--text-muted);">${e.description}</div>` : ''}</td>
+                <td>${PAYMENT_METHODS[e.method]?.label || e.method}</td>
+                <td style="color: #F87171; font-weight: 900;">${e.amount} ج.م</td>
+              </tr>`).join('')}
+            </tbody></table></div>` : '<div style="color: var(--text-muted); padding: 12px;">مفيش مصروفات في الفترة دي.</div>'}
+          </div>
+        </div>
+
         <!-- تحليل مصادر الدخل (مصنعيات مقابل مبيعات قطع غيار) -->
         <div class="grid-2" style="margin-bottom: 24px;">
           <div class="card" style="margin: 0; padding: 16px; border: 1px solid var(--border-color); background: var(--bg-surface-elevated);">
@@ -115,7 +186,7 @@ export const reportsView = {
           <div class="card" style="margin: 0;">
             <h2 class="card-title">
               <span>🔧</span>
-              <span>أكثر الخدمات طلباً (${periodLabels[selectedPeriod]})</span>
+              <span>أكثر الخدمات طلباً (${sum.range.label})</span>
             </h2>
             <div class="table-container">
               <table class="data-table">
@@ -238,8 +309,16 @@ export const reportsView = {
       });
     });
 
-    container.querySelector('#btnPrintReport').addEventListener('click', () => {
-      window.print();
+    container.querySelector('#btnPrintReport').addEventListener('click', () => reportPdfService.open(this.period));
+    container.querySelector('#btnRepCustom')?.addEventListener('click', () => {
+      const from = container.querySelector('#repFrom').value, to = container.querySelector('#repTo').value;
+      if (!from || !to) { alert('اختار التاريخين'); return; }
+      this.render(container, from <= to ? `${from}|${to}` : `${to}|${from}`);
     });
+    container.querySelector('#btnRepExpense')?.addEventListener('click', () => showExpenseModal(() => this.render(container, this.period)));
+    container.querySelectorAll('.btn-rep-collect').forEach(btn => btn.addEventListener('click', async () => {
+      const inv = this.debtInvoices?.get(btn.dataset.invId);
+      if (inv) showCollectDebtModal(inv, () => this.render(container, this.period));
+    }));
   }
 };

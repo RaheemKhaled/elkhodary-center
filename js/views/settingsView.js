@@ -9,7 +9,6 @@
 import { db } from '../db/indexeddb.js';
 import { syncEngine } from '../sync/syncEngine.js';
 import { authService } from '../services/authService.js';
-import { supabaseService } from '../services/supabaseService.js';
 import { toast } from '../components/toast.js';
 import { modal } from '../components/modal.js';
 import { localBackupService } from '../services/localBackupService.js';
@@ -17,8 +16,7 @@ import { localBackupService } from '../services/localBackupService.js';
 export const settingsView = {
   async render(container) {
     const [
-      services, workers, users, webhookSetting, centerNameSetting, centerPhoneSetting, centerAddressSetting,
-      supabaseUrlSetting, supabaseKeySetting
+      services, workers, users, webhookSetting, centerNameSetting, centerPhoneSetting, centerAddressSetting
     ] = await Promise.all([
       db.getAll('services'),
       db.getAll('workers'),
@@ -26,17 +24,13 @@ export const settingsView = {
       db.get('settings', 'googleSheetsWebhookUrl'),
       db.get('settings', 'centerName'),
       db.get('settings', 'centerPhone'),
-      db.get('settings', 'centerAddress'),
-      db.get('settings', 'supabaseUrl'),
-      db.get('settings', 'supabaseKey')
+      db.get('settings', 'centerAddress')
     ]);
 
     const webhookUrl = webhookSetting?.value || '';
     const centerName = centerNameSetting?.value || 'مركز صيانة السيارات وضبط الزوايا';
     const centerPhone = centerPhoneSetting?.value || '';
     const centerAddress = centerAddressSetting?.value || '';
-    const supabaseUrl = supabaseUrlSetting?.value || '';
-    const supabaseKey = supabaseKeySetting?.value || '';
 
     container.innerHTML = `
       <div class="settings-screen">
@@ -44,73 +38,8 @@ export const settingsView = {
           <div>
             <h1 style="font-size: 34px; font-weight: 900; color: #FFFFFF;">⚙️ إعدادات النظام والخدمات</h1>
             <p style="font-size: 20px; color: var(--text-muted);">
-              تحكم في التخزين السحابي (Supabase & Google Sheets)، أسعار الخدمات، الفنيين، والنسخ الاحتياطي.
+              ربط Google Sheets، أسعار الخدمات، الفنيين، المستخدمين، والنسخ الاحتياطي.
             </p>
-          </div>
-        </div>
-
-        <!-- 1. ربط وتخزين قاعدة بيانات سوبابيز السحابية (Supabase Cloud PostgreSQL) -->
-        <div class="card" style="border-color: #10B981; background: linear-gradient(180deg, rgba(16,185,129,0.06) 0%, var(--bg-surface) 100%);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-            <h2 class="card-title" style="margin: 0; color: #34D399;">
-              <span>⚡</span>
-              <span>قاعدة بيانات سوبابيز السحابية (Supabase PostgreSQL Database)</span>
-            </h2>
-            <button type="button" class="btn btn-secondary" id="btnDownloadSqlSchema" style="font-size: 14px; padding: 6px 14px; border-color: #10B981; color: #34D399; font-weight: 800;">
-              📄 تحميل كود إنشاء الجداول (SQL Schema)
-            </button>
-          </div>
-          <p style="color: var(--text-secondary); font-size: 16px; margin-bottom: 16px; line-height: 1.6;">
-            اربط النظام بسوبابيز لحفظ ومزامنة كافة بيانات المركز (العملاء، فواتير الصيانة، قطع الغيار، المبيعات والموردين) سحابياً في خادم PostgreSQL آمن مع استمرار العمل بدون نت.
-          </p>
-
-          <div class="grid-2" style="margin-bottom: 14px;">
-            <div class="form-group" style="margin: 0;">
-              <label class="form-label" for="supabaseUrlInput">رابط المشروع (Project URL):</label>
-              <input 
-                type="url" 
-                id="supabaseUrlInput" 
-                class="form-control" 
-                placeholder="https://xyzcompany.supabase.co" 
-                value="${supabaseUrl}"
-                style="direction: ltr; text-align: left; font-family: monospace; font-size: 15px;"
-              >
-            </div>
-            <div class="form-group" style="margin: 0;">
-              <label class="form-label" for="supabaseKeyInput">مفتاح الوصول العام (Anon Public Key):</label>
-              <input 
-                type="password" 
-                id="supabaseKeyInput" 
-                class="form-control" 
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
-                value="${supabaseKey}"
-                style="direction: ltr; text-align: left; font-family: monospace; font-size: 15px;"
-              >
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
-            <button type="button" class="btn btn-primary" id="btnSaveSupabaseConfig" style="min-width: 150px; background: #059669; border-color: #10B981; font-weight: 800;">
-              💾 حفظ المفاتيح
-            </button>
-            <button type="button" class="btn btn-secondary" id="btnTestSupabaseConnection" style="min-width: 140px; font-weight: 700;">
-              ⚡ فحص الاتصال
-            </button>
-            <button type="button" class="btn btn-success" id="btnUploadAllToSupabase" style="min-width: 220px; font-weight: 800; background: linear-gradient(135deg, #10B981, #059669);">
-              🚀 رفع وحفظ كل الداتا بيز الآن
-            </button>
-            <button type="button" class="btn btn-secondary" id="btnDownloadAllFromSupabase" style="min-width: 170px;">
-              📥 استيراد الداتا من Supabase
-            </button>
-          </div>
-
-          <div style="background: var(--bg-input); padding: 12px 18px; border-radius: var(--radius-md); font-size: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
-            <div>
-              حالة الربط: <strong id="supabaseStatusText" style="color: ${supabaseUrl && supabaseKey ? '#34D399' : '#FBBF24'};">${supabaseUrl && supabaseKey ? 'تم ضبط الرابط والمفتاح ✅' : 'لم يتم إدخال المفاتيح بعد ⚠️'}</strong>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted);">
-              قاعدة بيانات سحابية متوافقة 100% مع PostgreSQL 15+
-            </div>
           </div>
         </div>
 
@@ -211,7 +140,7 @@ export const settingsView = {
           <div class="card-header" style="border: none; padding: 0; margin-bottom: 16px;">
             <h2 class="card-title">
               <span>🔧</span>
-              <span>قائمة خدمات الصيانة والأسعار الافتراضية</span>
+              <span>قائمة خدمات الصيانة والأسعار (كل أسعار شاشة الكاشير من هنا)</span>
             </h2>
             <button type="button" class="btn btn-primary" id="btnAddNewService">
               ➕ إضافة خدمة جديدة
@@ -230,10 +159,11 @@ export const settingsView = {
                 </tr>
               </thead>
               <tbody>
-                ${services.map(s => `
+                ${[...services].sort((a, b) => (b.quickGroup ? 1 : 0) - (a.quickGroup ? 1 : 0)).map(s => `
                   <tr>
-                    <td style="font-weight: 800; font-size: 22px; color: #FFFFFF;">${s.name}</td>
-                    <td style="font-weight: 800; font-size: 20px; color: #FBBF24;">${s.defaultPrice} ج.م</td>
+                    <td style="font-weight: 800; font-size: 22px; color: #FFFFFF;">${s.name}
+                      ${s.quickGroup ? `<div style="font-size: 13px; color: #60A5FA; font-weight: 700;">⚡ زرار سريع في شاشة الكاشير</div>` : ''}</td>
+                    <td style="font-weight: 800; font-size: 20px; color: #FBBF24;">${s.defaultPrice} ج.م${s.perUnit ? '<div style="font-size: 13px; color: var(--text-muted);">للفردة الواحدة</div>' : ''}</td>
                     <td>
                       ${s.hasAddons && s.availableAddons?.length ? s.availableAddons.map(a => `
                         <span class="badge badge-info" style="margin-left: 4px; font-size: 15px;">${a.name} (+${a.defaultPrice} ج.م)</span>
@@ -249,9 +179,9 @@ export const settingsView = {
                         <button type="button" class="btn btn-secondary btn-edit-srv" data-srv-id="${s.id}" style="padding: 6px 14px; min-height: 44px;">
                           ✏️ تعديل
                         </button>
-                        <button type="button" class="btn btn-danger btn-delete-srv" data-srv-id="${s.id}" data-srv-name="${s.name}" style="padding: 6px 12px; min-height: 44px;" title="حذف الخدمة">
+                        ${s.quickGroup ? '' : `<button type="button" class="btn btn-danger btn-delete-srv" data-srv-id="${s.id}" data-srv-name="${s.name}" style="padding: 6px 12px; min-height: 44px;" title="حذف الخدمة">
                           🗑️
-                        </button>
+                        </button>`}
                       </div>
                     </td>
                   </tr>
@@ -400,108 +330,6 @@ export const settingsView = {
   },
 
   attachEvents(container, services, workers, users = []) {
-    // 1. أحداث سوبابيز (Supabase)
-    const supabaseUrlInput = container.querySelector('#supabaseUrlInput');
-    const supabaseKeyInput = container.querySelector('#supabaseKeyInput');
-    const supabaseStatusText = container.querySelector('#supabaseStatusText');
-
-    // تحميل سكريبت إنشاء الجداول (SQL Schema)
-    container.querySelector('#btnDownloadSqlSchema')?.addEventListener('click', async () => {
-      try {
-        const res = await fetch('supabase_schema.sql');
-        const sqlText = await res.text();
-        const blob = new Blob([sqlText], { type: 'text/plain;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'supabase_schema.sql';
-        a.click();
-        toast.success('تم تنزيل ملف supabase_schema.sql بنجاح! انسخه إلى SQL Editor في Supabase 📄');
-      } catch (e) {
-        toast.info('يمكنك فتح ملف supabase_schema.sql مباشرة من مجلد المشروع الرئيسي.');
-      }
-    });
-
-    // حفظ مفاتيح سوبابيز
-    container.querySelector('#btnSaveSupabaseConfig')?.addEventListener('click', async () => {
-      const url = supabaseUrlInput.value.trim();
-      const key = supabaseKeyInput.value.trim();
-      if (!url || !key) {
-        toast.warning('يرجى إدخال رابط المشروع والمفتاح العام معاً');
-        return;
-      }
-      try {
-        await supabaseService.saveConfig(url, key);
-        supabaseStatusText.textContent = 'تم حفظ المفاتيح ✅';
-        supabaseStatusText.style.color = '#34D399';
-        toast.success('تم حفظ إعدادات Supabase بنجاح ✅');
-      } catch (err) {
-        toast.error(`فشل الحفظ: ${err.message}`);
-      }
-    });
-
-    // فحص الاتصال بسوبابيز
-    container.querySelector('#btnTestSupabaseConnection')?.addEventListener('click', async () => {
-      const url = supabaseUrlInput.value.trim();
-      const key = supabaseKeyInput.value.trim();
-      if (!url || !key) {
-        toast.warning('يرجى إدخال الرابط والمفتاح أولاً للاختبار');
-        return;
-      }
-      toast.info('جاري فحص الاتصال بسوبابيز...');
-      try {
-        await supabaseService.saveConfig(url, key);
-        const res = await supabaseService.testConnection();
-        toast.success(res.message);
-        supabaseStatusText.textContent = 'متصل وسليم 100% 🚀';
-        supabaseStatusText.style.color = '#10B981';
-      } catch (err) {
-        toast.error(`تعذر الاتصال: ${err.message}`);
-        supabaseStatusText.textContent = 'خطأ في الاتصال ❌';
-        supabaseStatusText.style.color = '#EF4444';
-      }
-    });
-
-    // رفع كل البيانات إلى سوبابيز
-    container.querySelector('#btnUploadAllToSupabase')?.addEventListener('click', async () => {
-      const confirmed = await modal.confirm({
-        title: 'رفع البيانات إلى Supabase',
-        message: 'هل تريد رفع كافة البيانات المسجلة محلياً (العملاء، الفواتير، قطع الغيار، المبيعات، الموردين) وحفظها على سوبابيز سحابياً؟',
-        type: 'info'
-      });
-      if (!confirmed) return;
-
-      toast.info('جاري رفع ومزامنة كافة البيانات السحابية...');
-      try {
-        const res = await supabaseService.uploadAllToSupabase((p) => {
-          toast.info(`${p.message} (${p.current}/${p.total})`);
-        });
-        toast.success(`تم حفظ ورفع جميع البيانات بنجاح! إجمالي السجلات: ${res.totalRecords} سجل ☁️✅`);
-      } catch (err) {
-        toast.error(`فشل الرفع: ${err.message}`);
-      }
-    });
-
-    // استيراد البيانات من سوبابيز
-    container.querySelector('#btnDownloadAllFromSupabase')?.addEventListener('click', async () => {
-      const confirmed = await modal.confirm({
-        title: 'استيراد البيانات من Supabase',
-        message: 'سيتم جلب البيانات السحابية ودمجها مع قاعدة البيانات المحلية بالجهاز. هل تريد الاستمرار؟',
-        type: 'warning'
-      });
-      if (!confirmed) return;
-
-      toast.info('جاري استيراد البيانات من سوبابيز...');
-      try {
-        const res = await supabaseService.downloadAllFromSupabase((p) => {
-          toast.info(`${p.message} (${p.current}/${p.total})`);
-        });
-        toast.success(`تم استيراد ${res.totalRecords} سجل من Supabase بنجاح! 🎉`);
-        setTimeout(() => this.render(container), 1000);
-      } catch (err) {
-        toast.error(`فشل الاستيراد: ${err.message}`);
-      }
-    });
-
     // ===== مكان الحفظ على الجهاز (ديسكتوب) =====
     if (window.desktopAPI) {
       const rootEl = container.querySelector('#storageRootDisplay');
@@ -823,6 +651,7 @@ export const settingsView = {
       const cleanAddons = addons.filter(a => a.name.trim());
 
       const dataToSave = {
+        ...(srv || {}),
         id: srv?.id || db.generateId('SRV'),
         name,
         defaultPrice,

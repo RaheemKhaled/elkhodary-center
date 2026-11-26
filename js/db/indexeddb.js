@@ -151,6 +151,13 @@ class Database {
           store.createIndex('createdAt', 'createdAt', { unique: false });
         }
 
+        // 12b. المصروفات (عمالة، قطع غيار، دليفري، أخرى)
+        if (!db.objectStoreNames.contains('expenses')) {
+          const store = db.createObjectStore('expenses', { keyPath: 'id' });
+          store.createIndex('date', 'date', { unique: false });
+          store.createIndex('category', 'category', { unique: false });
+        }
+
         // 13. الإعدادات
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
@@ -320,7 +327,7 @@ class Database {
       'customers', 'cars', 'maintenance', 'services', 'workers',
       'workerAttendance', 'workerExpenses',
       'parts', 'sales', 'suppliers', 'supplierInvoices', 'purchases',
-      'supplierPayments', 'users', 'settings'
+      'supplierPayments', 'expenses', 'users', 'settings'
     ];
     const backup = {
       version: 1,

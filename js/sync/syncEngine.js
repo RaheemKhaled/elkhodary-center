@@ -6,7 +6,6 @@
  */
 
 import { db } from '../db/indexeddb.js';
-import { supabaseService } from '../services/supabaseService.js';
 import { APP_CONFIG } from '../config.js';
 
 // جداول محلية فقط لا تُرفع للشيت (كلمات المرور والإعدادات)
@@ -18,8 +17,10 @@ const PULL_CURSOR_KEY = 'syncPullCursor';
 // الجداول اللي بتتسحب من الأجهزة التانية
 const PULLABLE_STORES = new Set([
   'customers', 'cars', 'maintenance', 'services', 'workers', 'workerAttendance', 'workerExpenses',
-  'parts', 'sales', 'suppliers', 'supplierInvoices', 'purchases', 'supplierPayments'
+  'parts', 'sales', 'suppliers', 'supplierInvoices', 'purchases', 'supplierPayments', 'expenses'
 ]);
+// جداول محتاجة نسخة أحدث من كود الشيت: بتفضل محفوظة في الطابور لحد ما الكود يتحدث
+const ENTITY_MIN_API = { expenses: 2 };
 
 class SyncEngine {
   constructor() {
@@ -35,6 +36,7 @@ class SyncEngine {
     this.isPulling = false;
     this.pullUnsupported = false;
     this.lastPullAt = null;
+    this.serverApiVersion = Number(localStorage.getItem('almarkaz_api_version')) || 1;
 
     this.init();
   }
@@ -64,16 +66,7 @@ class SyncEngine {
         clearTimeout(this._debounce);
         this._debounce = setTimeout(() => this.triggerSync(), 1500);
       }
-      if (e.detail && e.detail.store && e.detail.item) {
-        if (e.detail.action === 'add' || e.detail.action === 'put') {
-          supabaseService.syncRecord(e.detail.store, e.detail.item);
-        } else if (e.detail.action === 'delete') {
-          supabaseService.deleteRecord(e.detail.store, e.detail.key);
-        }
-      }
     });
-
-    supabaseService.init().catch(err => console.warn('Supabase lazy init:', err));
 
     // فحص دوري: لو النت رجع من غير ما المتصفح يبعت حدث online، الطابور هيترفع برضه
     this.pollInterval = setInterval(() => this.triggerSync(), POLL_MS);
@@ -129,7 +122,7 @@ class SyncEngine {
       lastError: this.lastError,
       lastSyncAt: this.lastSyncAt,
       lastPullAt: this.lastPullAt,
-      pullUnsupported: this.pullUnsupported
+      pullUnsupported: this.pullUnsupported || this.scriptNeedsUpdate
     };
   }
 
@@ -176,6 +169,8 @@ class SyncEngine {
     const localOnly = pending.filter(i => LOCAL_ONLY_STORES.has(i.entityType));
     if (localOnly.length) await this.removeFromQueue(localOnly.map(i => i.id));
     pending = pending.filter(i => !LOCAL_ONLY_STORES.has(i.entityType));
+    // المصروفات مش بتترفع غير لما كود الشيت يدعمها (عشان متضيعش)
+    pending = pending.filter(i => (ENTITY_MIN_API[i.entityType] || 1) <= this.serverApiVersion);
     if (pending.length === 0) { this.notifyStatus(); return; }
 
     this.isSyncing = true;
@@ -267,6 +262,13 @@ class SyncEngine {
           break;
         }
         this.pullUnsupported = false;
+        const apiVersion = Number(data.apiVersion) || 1;
+        if (apiVersion !== this.serverApiVersion) {
+          this.serverApiVersion = apiVersion;
+          try { localStorage.setItem('almarkaz_api_version', String(apiVersion)); } catch (e) {}
+          setTimeout(() => this.triggerSync(), 300);
+        }
+        this.scriptNeedsUpdate = apiVersion < 2;
 
         if (data.rows.length) {
           applied += await this.applyRemoteRows(data.rows);

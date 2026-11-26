@@ -5,6 +5,7 @@
 import { db } from '../db/indexeddb.js';
 import { inventoryService } from './inventoryService.js';
 import { supplierService } from './supplierService.js';
+import { financeService } from './financeService.js';
 
 export const reportService = {
   // تصفية الفواتير حسب الفترة الزمنية (اليوم، الأسبوع، الشهر، الكل)
@@ -23,75 +24,35 @@ export const reportService = {
     });
   },
 
-  // تقرير الإيرادات والتحصيلات مقسمة (نقدي / فودافون كاش / إنستا باي)
+  // تقرير الإيرادات: الإيراد = المحصّل فعلاً، والآجل والمصروفات لوحدهم
   async getRevenueReport(period = 'today') {
-    const allInvoices = await db.getAll('maintenance');
-    const filtered = this.filterInvoicesByPeriod(allInvoices, period);
-
-    let totalRevenue = 0;
-    let cashTotal = 0;
-    let vodafoneTotal = 0;
-    let instaPayTotal = 0;
-    let totalDiscount = 0;
-    let remainingTotal = 0;
-    let servicesRevenue = 0;
-    let partsRevenue = 0;
-
-    for (const inv of filtered) {
-      totalRevenue += Number(inv.netTotal) || 0;
-      cashTotal += Number(inv.cashAmount) || 0;
-      vodafoneTotal += Number(inv.vodafoneCashAmount) || 0;
-      instaPayTotal += Number(inv.instaPayAmount) || 0;
-      totalDiscount += Number(inv.discountAmount) || 0;
-      remainingTotal += Number(inv.remainingBalance) || 0;
-
-      const sTotal = Array.isArray(inv.services) ? inv.services.reduce((sum, s) => sum + (Number(s.price) || 0) * (Number(s.quantity) || 1), 0) : 0;
-      const pTotal = Array.isArray(inv.parts) ? inv.parts.reduce((sum, p) => sum + (Number(p.totalPrice) || (Number(p.unitPrice) * Number(p.quantity)) || 0), 0) : 0;
-      servicesRevenue += sTotal;
-      partsRevenue += pTotal;
-    }
-
+    const sum = await financeService.getSummary(period);
     return {
       period,
-      invoicesCount: filtered.length,
-      totalRevenue,
-      cashTotal,
-      vodafoneTotal,
-      instaPayTotal,
-      totalDiscount,
-      remainingTotal,
-      servicesRevenue,
-      partsRevenue,
-      totalPaid: cashTotal + vodafoneTotal + instaPayTotal
+      summary: sum,
+      invoicesCount: sum.invoicesCount,
+      salesTotal: sum.salesTotal,
+      totalRevenue: sum.collectedTotal,
+      cashTotal: sum.collected.cash,
+      vodafoneTotal: sum.collected.vodafone,
+      instaPayTotal: sum.collected.insta,
+      totalPaid: sum.collectedTotal,
+      totalDiscount: sum.discounts,
+      newCredit: sum.newCredit,
+      remainingTotal: sum.outstandingCredit,
+      outstandingCredit: sum.outstandingCredit,
+      collectedOldDebt: sum.collectedOldDebt,
+      expensesTotal: sum.expensesTotal,
+      netTotal: sum.net.total,
+      servicesRevenue: sum.servicesRevenue,
+      partsRevenue: sum.partsRevenue
     };
   },
 
-  // أكثر الخدمات طلباً
+  // أكثر الخدمات طلباً (العدد = عدد الفرد/المرات، الدخل = إجمالي السطر)
   async getTopServices(period = 'all') {
-    const allInvoices = await db.getAll('maintenance');
-    const filtered = this.filterInvoicesByPeriod(allInvoices, period);
-
-    const counts = new Map();
-    const revenues = new Map();
-
-    for (const inv of filtered) {
-      if (Array.isArray(inv.services)) {
-        for (const s of inv.services) {
-          const name = s.name || 'خدمة أخرى';
-          counts.set(name, (counts.get(name) || 0) + (Number(s.quantity) || 1));
-          const price = (Number(s.price) || 0) * (Number(s.quantity) || 1);
-          revenues.set(name, (revenues.get(name) || 0) + price);
-        }
-      }
-    }
-
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({
-        name,
-        count,
-        revenue: revenues.get(name) || 0
-      }))
-      .sort((a, b) => b.count - a.count);
+    const sum = await financeService.getSummary(period);
+    return sum.services.filter(x => !x.name.startsWith('قطعة: ')).sort((a, b) => b.count - a.count);
   },
 
   // العملاء الأكثر زيارة وإنفاقاً
@@ -144,7 +105,7 @@ export const reportService = {
           const entry = workerMap.get(wName) || { count: 0, totalWorkValue: 0 };
           entry.count += 1;
           const sTotal = Array.isArray(inv.services)
-            ? inv.services.reduce((sum, s) => sum + (Number(s.price) || 0) * (Number(s.quantity) || 1), 0)
+            ? inv.services.reduce((sum, s) => sum + (Number(s.price) || 0), 0)
             : (Number(inv.servicesTotal) || Number(inv.subTotal) || 0);
           entry.totalWorkValue += sTotal / Math.max(1, inv.workers.length);
           workerMap.set(wName, entry);

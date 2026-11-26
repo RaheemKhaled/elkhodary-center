@@ -70,6 +70,7 @@ class App {
 
       // 6. أحداث شريط العنوان العلوي
       this.setupHeaderActions();
+      this.setupZoom();
 
       // 7. تحديد الشاشة الافتراضية حسب الصلاحية الحالية
       const initialRoute = this.getInitialRoute();
@@ -208,6 +209,14 @@ class App {
 
     syncEngine.onStatusChange((status) => {
       badgeEl.className = 'status-badge';
+      if (!status.hasWebhook) {
+        // من غير رابط الشيت الجهاز مش بيرفع ولا بينزّل بيانات الأجهزة التانية (فواتير، صنايعية، خدمات...)
+        badgeEl.classList.add('offline');
+        badgeEl.innerHTML = `<span>⚠️</span><span>مش متربط بالشيت</span>${status.pendingCount > 0 ? `<span class="pending-counter">${status.pendingCount}</span>` : ''}`;
+        badgeEl.title = 'الجهاز ده مش بيتزامن مع الأجهزة التانية. المدير يلصق رابط Google Sheets من الإعدادات.';
+        return;
+      }
+      badgeEl.title = 'اضغط لتشغيل المزامنة الفورية مع Google Sheets';
       if (status.isSyncing) {
         badgeEl.classList.add('syncing');
         badgeEl.innerHTML = `
@@ -257,6 +266,29 @@ class App {
       } catch (err) {
         toast.warning(err.message);
       }
+    });
+  }
+
+  // تكبير/تصغير الخط لكل الشاشات (بيتحفظ على الجهاز)
+  setupZoom() {
+    const KEY = 'almarkaz_zoom';
+    const label = document.getElementById('zoomLevelLabel');
+    let level = 1;
+    try { level = Number(localStorage.getItem(KEY)) || 1; } catch (e) {}
+    const apply = (v) => {
+      level = Math.min(1.6, Math.max(0.8, Math.round(v * 10) / 10));
+      document.body.style.zoom = level;
+      if (label) label.textContent = `${Math.round(level * 100)}%`;
+      try { localStorage.setItem(KEY, String(level)); } catch (e) {}
+    };
+    apply(level);
+    document.getElementById('btnZoomIn')?.addEventListener('click', () => apply(level + 0.1));
+    document.getElementById('btnZoomOut')?.addEventListener('click', () => apply(level - 0.1));
+    window.addEventListener('keydown', (e) => {
+      if (!e.ctrlKey) return;
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); apply(level + 0.1); }
+      else if (e.key === '-') { e.preventDefault(); apply(level - 0.1); }
+      else if (e.key === '0') { e.preventDefault(); apply(1); }
     });
   }
 

@@ -566,7 +566,7 @@ export const invoiceView = {
       if (phone.length === 11 && phone.startsWith('01')) {
         const found = await customerService.findByPhone(phone);
         if (found) {
-          this.applyExistingCustomerAndCar(container, found, found.cars?.[0]);
+          this.applyExistingCustomerAndCar(container, found, null);
         }
       }
     };
@@ -614,16 +614,38 @@ export const invoiceView = {
       notice.textContent = `✅ عميل مسجل لدينا سابقاً: ${customer.name} (${customer.computed?.visitsCount || 1} زيارة)`;
     }
 
-    if (car) {
-      this.state.car.id = car.id;
-      this.state.car.brand = car.brand;
-      this.state.car.model = car.model;
-      this.state.car.carType = car.carType || 'سيدان';
-      container.querySelector('#carBrandInput').value = car.brand;
-      container.querySelector('#carModelInput').value = car.model || '';
-      this.platePicker.setValues(car.plateLetters, car.plateNumbers, car.plateType || 'private');
+    // كل عربيات العميل تظهر للاختيار (مش أول واحدة بس) + عربية جديدة
+    const cars = (customer.cars && customer.cars.length) ? customer.cars : (car ? [car] : []);
+    let chooser = container.querySelector('#wizardCarChooser');
+    if (!chooser && notice) {
+      chooser = document.createElement('div');
+      chooser.id = 'wizardCarChooser';
+      chooser.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0;';
+      notice.insertAdjacentElement('afterend', chooser);
     }
-    toast.success(`تم جلب بيانات العميل ${customer.name} تلقائياً`);
+    const pick = (c) => {
+      this.state.car.id = c ? c.id : null;
+      this.state.car.brand = c ? c.brand || '' : '';
+      this.state.car.model = c ? c.model || '' : '';
+      this.state.car.carType = (c && c.carType) || 'سيدان';
+      container.querySelector('#carBrandInput').value = this.state.car.brand;
+      container.querySelector('#carModelInput').value = this.state.car.model;
+      this.platePicker.setValues(c ? c.plateLetters || '' : '', c ? c.plateNumbers || '' : '', (c && c.plateType) || 'private');
+      chooser?.querySelectorAll('.wiz-car').forEach(b => {
+        const on = (b.dataset.carId || '') === (c ? c.id : '');
+        b.style.background = on ? '#2563EB' : '';
+        b.style.color = on ? '#FFFFFF' : '';
+      });
+    };
+    if (chooser) {
+      chooser.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--text-secondary);">🚗 عربيات العميل (${cars.length}):</span>` +
+        cars.map(c => `<button type="button" class="btn btn-secondary wiz-car" data-car-id="${c.id}" style="font-size:15px;padding:6px 14px;border-radius:18px;">${c.brand || ''} ${c.model || ''} ${c.plateFull ? `[${c.plateFull}]` : ''}</button>`).join('') +
+        `<button type="button" class="btn btn-secondary wiz-car" data-car-id="" style="font-size:15px;padding:6px 14px;border-radius:18px;border-style:dashed;">➕ عربية جديدة</button>`;
+      chooser.querySelectorAll('.wiz-car').forEach(b => b.addEventListener('click', () => pick(cars.find(c => c.id === b.dataset.carId) || null)));
+    }
+    const initial = car && cars.find(c => c.id === car.id) ? cars.find(c => c.id === car.id) : cars[0];
+    if (initial) pick(initial);
+    toast.success(`تم جلب بيانات العميل ${customer.name} تلقائياً${cars.length > 1 ? ` (${cars.length} عربيات)` : ''}`);
   },
 
   bindServicesEvents(container, servicesList) {

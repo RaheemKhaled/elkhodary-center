@@ -19,6 +19,7 @@
  * عشان الرابط نفسه يفضل شغال بالكود الجديد.
  */
 
+var API_VERSION = 2; // 2 = بيدعم جدول المصروفات
 var SPREADSHEET_ID = '1yWk_nSVMuj1e2FwvJkKAo-pb1UiTkg5HEdveq12myZc';
 
 function getSpreadsheet() {
@@ -101,6 +102,7 @@ function doGet(e) {
     }
     return jsonOut({
       status: 'online',
+      apiVersion: API_VERSION,
       system: 'AlMarkaz Auto Service Center API',
       timestamp: new Date().toISOString()
     });
@@ -168,7 +170,8 @@ function getSheetNameForEntity(entityType) {
     'suppliers': 'Suppliers',
     'supplierInvoices': 'Supplier_Invoices',
     'purchases': 'Purchases',
-    'supplierPayments': 'Supplier_Payments'
+    'supplierPayments': 'Supplier_Payments',
+    'expenses': 'Expenses'
   };
   return map[entityType] || null;
 }
@@ -218,6 +221,8 @@ function getHeadersForSheet(sheetName) {
       return ['كود التوريد', 'رقم الفاتورة الورقية', 'كود المورد', 'اسم المورد', 'تاريخ الفاتورة', 'تاريخ الاستحقاق', 'مبلغ الفاتورة', 'المدفوع', 'المتبقي', 'الحالة'];
     case 'Purchases':
       return ['كود الشراء المركب', 'كود التوريد', 'رقم الفاتورة', 'كود القطعة', 'اسم القطعة', 'سعر الشراء', 'الكمية', 'الإجمالي', 'التاريخ'];
+    case 'Expenses':
+      return ['كود المصروف', 'التاريخ', 'المبلغ', 'طريقة الدفع', 'البند', 'الصنايعي', 'البيان', 'سجله'];
     case 'Supplier_Payments':
       return ['كود الدفعة', 'كود المورد', 'كود الفاتورة', 'المبلغ', 'طريقة الدفع', 'ملاحظات', 'التاريخ'];
     default:
@@ -266,6 +271,10 @@ function objectToRow(entityType, obj) {
       return [obj.id, obj.invoiceNumber || '', obj.supplierId, obj.supplierName || '', obj.invoiceDate || '', obj.dueDate || '', obj.totalAmount || 0, obj.paidAmount || 0, obj.remainingAmount || 0, obj.status || ''];
     case 'purchases':
       return [obj.id, obj.supplierInvoiceId, obj.invoiceNumber || '', obj.partId, obj.partName || '', obj.unitCost || 0, obj.quantity || 0, obj.totalCost || 0, obj.createdAt || ''];
+    case 'expenses':
+      var methods = { cash: 'نقدي', vodafone: 'فودافون كاش', insta: 'إنستا باي' };
+      var cats = { labor: 'مصروف عمالة', parts: 'شراء قطع غيار', delivery: 'دليفري', other: 'أخرى' };
+      return [obj.id, obj.date || '', obj.amount || 0, methods[obj.method] || obj.method || '', cats[obj.category] || obj.category || '', obj.workerName || '', obj.description || '', obj.createdBy || ''];
     case 'supplierPayments':
       return [obj.id, obj.supplierId, obj.supplierInvoiceId || '', obj.amount || 0, obj.paymentMethod || '', obj.notes || '', obj.date || ''];
     default:
@@ -340,7 +349,7 @@ function pullChanges(after, limit) {
   var sheet = getSyncLogSheet(ss);
   var lastDataRow = sheet.getLastRow(); // السطر 1 = العناوين
   var total = Math.max(0, lastDataRow - 1);
-  if (after >= total) return { success: true, rows: [], next: total, total: total };
+  if (after >= total) return { success: true, rows: [], next: total, total: total, apiVersion: API_VERSION };
   var count = Math.min(limit, total - after);
   var values = sheet.getRange(after + 2, 1, count, SYNC_LOG_HEADERS.length).getValues();
   var rows = [];
@@ -352,7 +361,7 @@ function pullChanges(after, limit) {
     }
     rows.push({ t: String(v[0]), e: String(v[1]), id: String(v[2]), a: String(v[3]), p: payload, d: String(v[5]) });
   }
-  return { success: true, rows: rows, next: after + count, total: total };
+  return { success: true, rows: rows, next: after + count, total: total, apiVersion: API_VERSION };
 }
 
 // أول مرة بس: نسجل البيانات اللي كانت موجودة قبل سجل التغييرات عشان الأجهزة تسحبها

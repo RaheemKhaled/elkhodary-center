@@ -81,6 +81,29 @@ async function migrateDefaultUsers() {
  * دالة تحميل البيانات التجريبية الأولية
  */
 
+// الخدمات السريعة اللي في شاشة الكاشير: أسعارها بتتعدل من الإعدادات > قائمة الخدمات
+// (بتتحط بتاريخ قديم عشان أي تعديل من أي جهاز يكسبها في المزامنة)
+export const QUICK_SERVICES = [
+  { id: 'QS-ALIGN-FRONT', name: 'ضبط زوايا أمامي', defaultPrice: 120, quickGroup: 'alignment', quickKey: 'front' },
+  { id: 'QS-ALIGN-REAR', name: 'ضبط زوايا خلفي', defaultPrice: 100, quickGroup: 'alignment', quickKey: 'rear' },
+  { id: 'QS-ALIGN-FULL', name: 'ضبط زوايا كامل (أمامي وخلفي)', defaultPrice: 200, quickGroup: 'alignment', quickKey: 'full' },
+  { id: 'QS-BAL-NORMAL', name: 'ترصيص عادي', defaultPrice: 35, quickGroup: 'balancing', perUnit: true, quickOrder: 1 },
+  { id: 'QS-BAL-STICK', name: 'ترصيص لاصق سبور', defaultPrice: 50, quickGroup: 'balancing', perUnit: true, quickOrder: 2 },
+  { id: 'QS-BAL-MOTO', name: 'ترصيص موتوسيكل', defaultPrice: 25, quickGroup: 'balancing', perUnit: true, quickOrder: 3 },
+  { id: 'QS-TIRE-MOUNT', name: 'تركيب كاوتش', defaultPrice: 25, quickGroup: 'tire', quickKey: 'mount', perUnit: true },
+  { id: 'QS-TIRE-PATCH', name: 'لحام كاوتش', defaultPrice: 45, quickGroup: 'tire', quickKey: 'patch', perUnit: true }
+];
+
+async function ensureQuickServices() {
+  for (const q of QUICK_SERVICES) {
+    if (await db.get('services', q.id)) continue;
+    await db.putRemote('services', {
+      ...q, isActive: true, isCustom: false, hasAddons: false, availableAddons: [],
+      createdAt: '2000-01-01T00:00:00.000Z', updatedAt: '2000-01-01T00:00:00.000Z'
+    });
+  }
+}
+
 /**
  * مسح البيانات التجريبية القديمة (مرة واحدة على كل جهاز)
  */
@@ -130,6 +153,9 @@ export async function seedDatabaseIfEmpty() {
 
   // مسح أي بيانات تجريبية من النسخ القديمة
   await removeLegacyDemoData();
+
+  // الخدمات السريعة (زوايا/ترصيص/كاوتش) بأسعار قابلة للتعديل
+  await ensureQuickServices();
 
   // إعدادات أساسية فاضية لو مش موجودة
   const defaults = {

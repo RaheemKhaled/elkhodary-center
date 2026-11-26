@@ -144,6 +144,16 @@ function registerIpc() {
     return { success: true, filePath };
   });
 
+  ipcMain.handle('report:savePdf', async (_e, { html, fileName } = {}) => {
+    if (!html) throw new Error('التقرير فاضي');
+    const folder = path.join(invoicesRoot(), 'تقارير');
+    fs.mkdirSync(folder, { recursive: true });
+    const filePath = path.join(folder, `${safeName(fileName || 'تقرير')}.pdf`);
+    fs.writeFileSync(filePath, await renderHtmlToPdf(html));
+    await shell.openPath(filePath);
+    return { success: true, filePath };
+  });
+
   ipcMain.handle('invoice:openPdf', async (_e, filePath) => {
     if (!filePath || !/\.pdf$/i.test(String(filePath)) || !fs.existsSync(filePath)) return false;
     const err = await shell.openPath(filePath);

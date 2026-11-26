@@ -6,6 +6,8 @@
 import { reportService } from '../services/reportService.js';
 import { customerService } from '../services/customerService.js';
 import { invoiceService } from '../services/invoiceService.js';
+import { showExpenseModal } from '../components/financeModals.js';
+import { reportPdfService } from '../services/reportPdfService.js';
 
 export const homeView = {
   async render(container) {
@@ -124,7 +126,7 @@ export const homeView = {
           </div>
           <div class="grid-4">
             <div style="background: var(--bg-input); padding: 18px; border-radius: var(--radius-md); border: 2px solid var(--border-color);">
-              <div style="font-size: 18px; color: var(--text-muted); font-weight: 700;">الإجمالي اليومي</div>
+              <div style="font-size: 18px; color: var(--text-muted); font-weight: 700;">💰 المحصّل اليوم (من غير الآجل)</div>
               <div style="font-size: 32px; font-weight: 900; color: #38BDF8; margin-top: 6px;">${todayRevenue.totalRevenue} <small style="font-size: 16px;">ج.م</small></div>
             </div>
             <div style="background: var(--bg-input); padding: 18px; border-radius: var(--radius-md); border: 2px solid var(--border-color);">
@@ -140,6 +142,28 @@ export const homeView = {
               <div style="font-size: 32px; font-weight: 900; color: #A78BFA; margin-top: 6px;">${todayRevenue.instaPayTotal} <small style="font-size: 16px;">ج.م</small></div>
             </div>
           </div>
+          <div class="grid-4" style="margin-top: 14px;">
+            <div style="background: var(--bg-input); padding: 18px; border-radius: var(--radius-md); border: 2px solid var(--border-color);">
+              <div style="font-size: 18px; color: var(--text-muted); font-weight: 700;">💸 مصروفات اليوم</div>
+              <div style="font-size: 32px; font-weight: 900; color: #F87171; margin-top: 6px;">${todayRevenue.expensesTotal} <small style="font-size: 16px;">ج.م</small></div>
+            </div>
+            <div style="background: var(--bg-input); padding: 18px; border-radius: var(--radius-md); border: 2px solid var(--border-color);">
+              <div style="font-size: 18px; color: var(--text-muted); font-weight: 700;">✅ الصافي (المحصّل - المصروفات)</div>
+              <div style="font-size: 32px; font-weight: 900; color: #34D399; margin-top: 6px;">${todayRevenue.netTotal} <small style="font-size: 16px;">ج.م</small></div>
+            </div>
+            <div style="background: var(--bg-input); padding: 18px; border-radius: var(--radius-md); border: 2px solid var(--border-color);">
+              <div style="font-size: 18px; color: var(--text-muted); font-weight: 700;">🧾 آجل جديد النهارده</div>
+              <div style="font-size: 32px; font-weight: 900; color: #FBBF24; margin-top: 6px;">${todayRevenue.newCredit} <small style="font-size: 16px;">ج.م</small></div>
+            </div>
+            <div style="background: rgba(239,68,68,0.08); padding: 18px; border-radius: var(--radius-md); border: 2px solid #EF4444; cursor: pointer;" id="homeCreditCard" title="اضغط لعرض العملاء اللي عليهم آجل">
+              <div style="font-size: 18px; color: var(--text-muted); font-weight: 700;">⏳ إجمالي الآجل على العملاء</div>
+              <div style="font-size: 32px; font-weight: 900; color: #F87171; margin-top: 6px;">${todayRevenue.outstandingCredit} <small style="font-size: 16px;">ج.م</small></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-danger" id="homeAddExpense" style="font-size: 17px; font-weight: 800;">💸 تسجيل مصروف</button>
+            <button type="button" class="btn btn-primary" id="homeDailyReport" style="font-size: 17px; font-weight: 800;">📄 تقرير النهارده PDF</button>
+          </div>
         </div>
       </div>
     `;
@@ -148,6 +172,9 @@ export const homeView = {
   },
 
   attachEvents(container) {
+    container.querySelector('#homeAddExpense')?.addEventListener('click', () => showExpenseModal(() => this.render(container)));
+    container.querySelector('#homeDailyReport')?.addEventListener('click', () => reportPdfService.open('today'));
+    container.querySelector('#homeCreditCard')?.addEventListener('click', () => window.app.navigate('reports'));
     // التنقل للأقسام
     container.querySelector('#btnGoCashierView')?.addEventListener('click', () => {
       window.app.navigate('cashier');

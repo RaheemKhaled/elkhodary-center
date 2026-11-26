@@ -8,6 +8,8 @@ import { db } from '../db/indexeddb.js';
 import { customerService } from '../services/customerService.js';
 import { inventoryService } from '../services/inventoryService.js';
 import { invoiceService } from '../services/invoiceService.js';
+import { financeService } from '../services/financeService.js';
+import { showExpenseModal } from '../components/financeModals.js';
 import { authService } from '../services/authService.js';
 import { EgyptianPlatePicker } from '../components/platePicker.js?v=21';
 import { toast } from '../components/toast.js';
@@ -20,6 +22,23 @@ export const cashierView = {
       inventoryService.getAllPartsWithStock(),
       db.find('workers', w => w.isActive !== false)
     ]);
+
+    // أسعار الخدمات السريعة من الإعدادات (قائمة الخدمات)
+    const byId = Object.fromEntries(servicesList.map(x => [x.id, x]));
+    const price = (id, def) => Number(byId[id]?.defaultPrice ?? def) || def;
+    this.quick = {
+      front: { name: byId['QS-ALIGN-FRONT']?.name || 'ضبط زوايا أمامي', price: price('QS-ALIGN-FRONT', 120) },
+      rear: { name: byId['QS-ALIGN-REAR']?.name || 'ضبط زوايا خلفي', price: price('QS-ALIGN-REAR', 100) },
+      full: { name: byId['QS-ALIGN-FULL']?.name || 'ضبط زوايا كامل (أمامي وخلفي)', price: price('QS-ALIGN-FULL', 200) },
+      mount: { name: byId['QS-TIRE-MOUNT']?.name || 'تركيب كاوتش', price: price('QS-TIRE-MOUNT', 25) },
+      patch: { name: byId['QS-TIRE-PATCH']?.name || 'لحام كاوتش', price: price('QS-TIRE-PATCH', 45) },
+      balancing: servicesList.filter(x => x.quickGroup === 'balancing').sort((a, b) => (a.quickOrder || 9) - (b.quickOrder || 9))
+    };
+    if (!this.quick.balancing.length) {
+      this.quick.balancing = [{ id: 'QS-BAL-NORMAL', name: 'ترصيص عادي', defaultPrice: 35 }];
+    }
+    // باقي الخدمات المسجلة في الإعدادات بتظهر كأزرار في الكاشير
+    this.catalogServices = servicesList.filter(x => !x.quickGroup);
 
     this.currentData = {
       invoiceDate: this.todayLocal(),
@@ -56,6 +75,10 @@ export const cashierView = {
               <span>📋</span>
               <span>سجل الفواتير (F3)</span>
               <span id="cashierInvoicesCountBadge" class="badge" style="background:#0F172A;color:#93C5FD;padding:2px 7px;font-size:12px;border-radius:10px;">0</span>
+            </button>
+            <!-- تسجيل مصروف -->
+            <button type="button" class="btn btn-danger" id="btnOpenExpense" style="font-size:13.5px;font-weight:800;padding:6px 14px;min-height:36px;display:flex;align-items:center;gap:6px;">
+              <span>💸</span><span>تسجيل مصروف</span>
             </button>
             <!-- زر سجل العميل برقم التليفون -->
             <button type="button" class="btn btn-primary" id="btnOpenCustomerHistory" style="font-size:13.5px;font-weight:800;padding:6px 14px;min-height:36px;background:linear-gradient(135deg, #059669, #047857);display:flex;align-items:center;gap:6px;border:1px solid #34D399;">
@@ -114,6 +137,7 @@ export const cashierView = {
               </div>
             </div>
 
+            <div id="cashierCarChooser" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
             <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 1fr;gap:10px;margin-bottom:10px;">
               <div style="position:relative;">
                 <label class="form-label" for="cashierPhoneInput" style="font-size:13px;margin-bottom:3px;"><span class="required">*</span> رقم التليفون:</label>
@@ -168,17 +192,17 @@ export const cashierView = {
                   </div>
                 </div>
                 <div class="pos-tile-group">
-                  <div class="pos-tile-btn" id="tileAlignFront" data-type="front" data-price="120" title="اضغط للتحديد">
+                  <div class="pos-tile-btn" id="tileAlignFront" data-type="front" title="اضغط للتحديد">
                     <span class="tile-label">أمامي</span>
-                    <span class="tile-price">120 ج</span>
+                    <span class="tile-price">${this.quick.front.price} ج</span>
                   </div>
-                  <div class="pos-tile-btn" id="tileAlignRear" data-type="rear" data-price="100" title="اضغط للتحديد">
+                  <div class="pos-tile-btn" id="tileAlignRear" data-type="rear" title="اضغط للتحديد">
                     <span class="tile-label">خلفي</span>
-                    <span class="tile-price">100 ج</span>
+                    <span class="tile-price">${this.quick.rear.price} ج</span>
                   </div>
-                  <div class="pos-tile-btn" id="tileAlignFull" data-type="full" data-price="200" title="اضغط للتحديد">
+                  <div class="pos-tile-btn" id="tileAlignFull" data-type="full" title="اضغط للتحديد">
                     <span class="tile-label">كامل</span>
-                    <span class="tile-price">200 ج</span>
+                    <span class="tile-price">${this.quick.full.price} ج</span>
                   </div>
                 </div>
               </div>
@@ -193,9 +217,7 @@ export const cashierView = {
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;">
                   <select id="cashierBalancingType" class="form-control" style="flex:1;height:38px;font-size:12.5px;padding:2px 4px;min-width:0;background:var(--bg-surface-elevated);border-color:var(--border-color);">
-                    <option value="35" data-name="عادي">عادي (35 ج/فردة)</option>
-                    <option value="50" data-name="لاصق سبور">لاصق (50 ج/فردة)</option>
-                    <option value="25" data-name="موتوسيكل">موتوسيكل (25 ج/فردة)</option>
+                    ${this.quick.balancing.map(b => `<option value="${b.defaultPrice}" data-name="${b.name}">${String(b.name).replace(/^ترصيص\s*/, '') || b.name} (${b.defaultPrice} ج/فردة)</option>`).join('')}
                   </select>
                   <select id="cashierBalancingQty" class="form-control" style="width:70px;height:38px;font-size:12.5px;padding:2px 2px;text-align:center;background:var(--bg-surface-elevated);border-color:var(--border-color);">
                     <option value="4" selected>4 فرد</option>
@@ -203,6 +225,7 @@ export const cashierView = {
                     <option value="2">2 فردة</option>
                     <option value="3">3 فردة</option>
                     <option value="5">5 فرد</option>
+                    <option value="6">6 فرد</option>
                   </select>
                   <button type="button" class="btn btn-secondary" id="btnPosAddBalancing"
                     style="font-size:13px;font-weight:600;height:38px;padding:0 12px;border-radius:6px;white-space:nowrap;">
@@ -216,7 +239,7 @@ export const cashierView = {
                 <div class="pos-card-header">
                   <div class="pos-title-group">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                    <span>الكاوتش (25 ج.م للفردة)</span>
+                    <span>الكاوتش (تركيب ${this.quick.mount.price} / لحام ${this.quick.patch.price} ج للفردة)</span>
                   </div>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;">
@@ -248,6 +271,19 @@ export const cashierView = {
               </div>
 
             </div>
+
+            ${this.catalogServices.length ? `
+            <!-- خدمات تانية من قائمة الإعدادات -->
+            <div class="pos-card" style="padding:8px 10px;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:12.5px;font-weight:800;color:var(--text-secondary);">🔧 خدمات تانية:</span>
+                ${this.catalogServices.map(c => `
+                  <button type="button" class="btn btn-secondary btn-catalog-service" data-srv-id="${c.id}"
+                    style="font-size:12.5px;font-weight:700;height:34px;padding:0 10px;border-radius:6px;white-space:nowrap;">
+                    ${c.name} <span style="color:#34D399;margin-inline-start:4px;">${c.defaultPrice} ج</span>
+                  </button>`).join('')}
+              </div>
+            </div>` : ''}
 
             <!-- الصف السفلي (بطاقتان: أعمال العفشة - قطع الغيار) -->
             <div class="pos-services-row-bottom">
@@ -435,37 +471,35 @@ export const cashierView = {
       clearTimeout(debounceTimer);
       const query = e.target.value.trim();
       this.currentData.customer.phone = query;
+      // الرقم اتغير: نفك ربط العميل القديم
+      if (this.currentData.customer.id && invoiceService.normalizePhone(query) !== invoiceService.normalizePhone(this.lockedPhone || '')) {
+        this.unlockCustomer(container);
+      }
       if (query.length < 2) { dropdown.style.display = 'none'; badge.style.display = 'none'; return; }
       debounceTimer = setTimeout(async () => {
-        if (query.replace(/\D/g, '').length >= 11) this.showCustomerInvoiceCountBadge(container, query);
+        const digits = invoiceService.normalizePhone(query);
+        if (digits.length === 11) {
+          const profile = await customerService.findByPhone(digits);
+          if (profile) {
+            this.applyReturningCustomer(container, profile);
+            dropdown.style.display = 'none';
+            return;
+          }
+        }
         const suggestions = await customerService.getAutocompleteSuggestions(query);
         if (!suggestions.length) { dropdown.style.display = 'none'; return; }
-        dropdown.innerHTML = suggestions.map(s => `
-          <div class="cust-suggestion-item" data-id="${s.id}" data-name="${s.name}" data-phone="${s.phone}" data-cars='${JSON.stringify(s.cars || [])}'>
-            <div style="font-size:15px;font-weight:800;color:#fff;">${s.name} — 📱 ${s.phone}</div>
-            <div style="font-size:12px;color:#93C5FD;">${s.cars?.length ? `🚗 ${s.cars.map(c => `${c.brand} (${c.plateLetters} ${c.plateNumbers})`).join(' | ')}` : 'عميل مسجل'}</div>
+        dropdown.innerHTML = suggestions.map(sg => `
+          <div class="cust-suggestion-item" data-id="${sg.customer.id}">
+            <div style="font-size:15px;font-weight:800;color:#fff;">${sg.customer.name} — 📱 ${sg.customer.phone}</div>
+            <div style="font-size:12px;color:#93C5FD;">${sg.cars?.length ? `🚗 ${sg.cars.map(c => `${c.brand || ''} (${c.plateFull || `${c.plateLetters || ''} ${c.plateNumbers || ''}`})`).join(' | ')}` : 'عميل مسجل'}</div>
           </div>
         `).join('');
         dropdown.style.display = 'block';
         dropdown.querySelectorAll('.cust-suggestion-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const id = item.dataset.id, nm = item.dataset.name, ph = item.dataset.phone;
-            const cars = JSON.parse(item.dataset.cars || '[]');
-            phoneInput.value = ph; nameInput.value = nm;
-            this.currentData.customer = { id, name: nm, phone: ph };
-            if (cars.length) {
-              const car = cars[0];
-              this.currentData.car.id = car.id;
-              this.currentData.car.brand = car.brand || 'هيونداي';
-              this.currentData.car.model = car.model || '';
-              container.querySelector('#cashierCarBrand').value = this.currentData.car.brand;
-              container.querySelector('#cashierCarModel').value = this.currentData.car.model;
-              this.platePicker.setValues(car.plateLetters, car.plateNumbers, car.plateType || 'private');
-            }
-            badge.innerHTML = `✅ عميل مسجل: <strong>${nm}</strong>`;
-            badge.style.display = 'inline-block';
+          item.addEventListener('click', async () => {
+            const profile = await customerService.getCustomerFullProfile(item.dataset.id);
+            if (profile) this.applyReturningCustomer(container, profile);
             dropdown.style.display = 'none';
-            this.showCustomerInvoiceCountBadge(container, ph);
           });
         });
       }, 150);
@@ -503,8 +537,8 @@ export const cashierView = {
         this.currentData.services = this.currentData.services.filter(s => s.id !== 'SRV-ALIGN-FRONT' && s.id !== 'SRV-ALIGN-REAR');
         this.currentData.services.push({
           id: 'SRV-ALIGN-FULL',
-          name: 'ضبط زوايا كامل (أمامي وخلفي)',
-          price: 200,
+          name: this.quick.full.name,
+          price: this.quick.full.price,
           category: 'alignment'
         });
       }
@@ -521,8 +555,8 @@ export const cashierView = {
       } else {
         this.currentData.services.push({
           id: 'SRV-ALIGN-FRONT',
-          name: 'ضبط زوايا أمامي',
-          price: 120,
+          name: this.quick.front.name,
+          price: this.quick.front.price,
           category: 'alignment'
         });
       }
@@ -539,8 +573,8 @@ export const cashierView = {
       } else {
         this.currentData.services.push({
           id: 'SRV-ALIGN-REAR',
-          name: 'ضبط زوايا خلفي',
-          price: 100,
+          name: this.quick.rear.name,
+          price: this.quick.rear.price,
           category: 'alignment'
         });
       }
@@ -554,13 +588,13 @@ export const cashierView = {
       const typeSelect = container.querySelector('#cashierBalancingType');
       const qtySelect = container.querySelector('#cashierBalancingQty');
       const unitPrice = Number(typeSelect.value) || 35;
-      const typeName = typeSelect.selectedOptions[0]?.dataset.name || 'عادي';
+      const typeName = typeSelect.selectedOptions[0]?.dataset.name || 'ترصيص عادي';
       const qty = Number(qtySelect.value) || 4;
       const total = unitPrice * qty;
 
       this.currentData.services.push({
         id: 'SRV-BAL-' + Date.now(),
-        name: `ترصيص ${typeName} (${qty} فرد)`,
+        name: typeName,
         price: total,
         unitPrice,
         quantity: qty,
@@ -568,18 +602,18 @@ export const cashierView = {
       });
       this.renderCashierAddedItemsList(container);
       this.recalculateCashierTotals(container);
-      toast.success(`تمت إضافة ترصيص ${typeName} (${qty} فرد) ✅`);
+      toast.success(`تمت إضافة ${typeName} (${qty} فرد) ✅`);
     });
 
     // 7. الكاوتش (تركيب ولحام)
     container.querySelector('#btnPosAddTireMount')?.addEventListener('click', () => {
       const qty = Number(container.querySelector('#cashierTireMountQty')?.value) || 4;
-      const price = qty * 25;
+      const price = qty * this.quick.mount.price;
       this.currentData.services.push({
         id: 'SRV-TIRE-M-' + Date.now(),
-        name: `تركيب كاوتش (${qty} فرد)`,
+        name: this.quick.mount.name,
         price,
-        unitPrice: 25,
+        unitPrice: this.quick.mount.price,
         quantity: qty,
         category: 'tire'
       });
@@ -590,18 +624,36 @@ export const cashierView = {
 
     container.querySelector('#btnPosAddTirePatch')?.addEventListener('click', () => {
       const qty = Number(container.querySelector('#cashierTirePatchQty')?.value) || 1;
-      const price = qty * 45;
+      const price = qty * this.quick.patch.price;
       this.currentData.services.push({
         id: 'SRV-TIRE-P-' + Date.now(),
-        name: `لحام كاوتش (${qty} فردة)`,
+        name: this.quick.patch.name,
         price,
-        unitPrice: 45,
+        unitPrice: this.quick.patch.price,
         quantity: qty,
         category: 'tire'
       });
       this.renderCashierAddedItemsList(container);
       this.recalculateCashierTotals(container);
       toast.success(`تمت إضافة لحام كاوتش (${qty} فردة) ✅`);
+    });
+
+    // 7b. خدمات من قائمة الإعدادات
+    container.querySelectorAll('.btn-catalog-service').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const srv = this.catalogServices.find(c => c.id === btn.dataset.srvId);
+        if (!srv) return;
+        this.currentData.services.push({
+          id: 'SRV-CAT-' + Date.now(),
+          serviceId: srv.id,
+          name: srv.name,
+          price: Number(srv.defaultPrice) || 0,
+          category: 'custom'
+        });
+        this.renderCashierAddedItemsList(container);
+        this.recalculateCashierTotals(container);
+        toast.success(`تمت إضافة ${srv.name} ✅ (السعر يتعدل من القائمة تحت)`);
+      });
     });
 
     // 8. أعمال العفشة
@@ -888,6 +940,8 @@ export const cashierView = {
       invoiceService.showInvoicesLogModal();
     });
 
+    container.querySelector('#btnOpenExpense')?.addEventListener('click', () => showExpenseModal());
+
     // سجل العميل برقم التليفون (ياخد الرقم المكتوب في خانة التليفون لو موجود)
     container.querySelector('#btnOpenCustomerHistory')?.addEventListener('click', () => {
       invoiceService.showCustomerHistoryModal(container.querySelector('#cashierPhoneInput')?.value || '');
@@ -1172,10 +1226,21 @@ export const cashierView = {
             <span style="font-size:13px;font-weight:800;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               ${srv.name}
             </span>
-            ${srv.quantity ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">(عدد ${srv.quantity})</span>` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-            <strong style="color:#34D399;font-size:15px;font-weight:900;">${srv.price} ج.م</strong>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            ${Number(srv.quantity) > 0 ? `
+              <input type="number" class="form-control item-edit" data-kind="service" data-idx="${idx}" data-field="quantity" value="${srv.quantity}" min="1" title="العدد"
+                style="width:52px;height:30px;min-height:30px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;">
+              <span style="font-size:12px;color:var(--text-muted);">×</span>
+              <input type="number" class="form-control item-edit" data-kind="service" data-idx="${idx}" data-field="unitPrice" value="${srv.unitPrice ?? Math.round(srv.price / srv.quantity)}" min="0" title="سعر الوحدة"
+                style="width:64px;height:30px;min-height:30px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;">
+              <span style="font-size:12px;color:var(--text-muted);">=</span>
+              <strong class="item-line-total" style="color:#34D399;font-size:15px;font-weight:900;min-width:70px;">${srv.price} ج.م</strong>
+            ` : `
+              <input type="number" class="form-control item-edit" data-kind="service" data-idx="${idx}" data-field="price" value="${srv.price}" min="0" title="عدّل السعر"
+                style="width:84px;height:30px;min-height:30px;font-size:14px;font-weight:800;text-align:center;padding:0 2px;color:#34D399;">
+              <span style="font-size:12px;color:var(--text-muted);">ج.م</span>
+            `}
             <button type="button" class="btn btn-danger btn-icon-only btn-remove-service" data-idx="${idx}"
               style="width:22px;height:22px;font-size:11px;padding:0;border-radius:4px;" title="حذف">
               ✕
@@ -1197,11 +1262,17 @@ export const cashierView = {
             <span style="font-size:13px;font-weight:800;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               ${p.name}
             </span>
-            <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">× ${p.quantity} (${p.unitPrice} ج)</span>
+
             ${p.isCustom ? `<span style="font-size:10px;color:#38BDF8;">[خارجي]</span>` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-            <strong style="color:#34D399;font-size:15px;font-weight:900;">${p.totalPrice} ج.م</strong>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <input type="number" class="form-control item-edit" data-kind="part" data-idx="${idx}" data-field="quantity" value="${p.quantity}" min="1" title="العدد"
+              style="width:52px;height:30px;min-height:30px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;">
+            <span style="font-size:12px;color:var(--text-muted);">×</span>
+            <input type="number" class="form-control item-edit" data-kind="part" data-idx="${idx}" data-field="unitPrice" value="${p.unitPrice}" min="0" title="سعر الوحدة"
+              style="width:64px;height:30px;min-height:30px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;">
+            <span style="font-size:12px;color:var(--text-muted);">=</span>
+            <strong class="item-line-total" style="color:#34D399;font-size:15px;font-weight:900;min-width:70px;">${p.totalPrice} ج.م</strong>
             <button type="button" class="btn btn-danger btn-icon-only btn-remove-part" data-idx="${idx}"
               style="width:22px;height:22px;font-size:11px;padding:0;border-radius:4px;" title="حذف">
               ✕
@@ -1212,6 +1283,25 @@ export const cashierView = {
     });
 
     listEl.innerHTML = html;
+
+    // تعديل السعر/العدد مباشرة (بدل الحذف والإضافة من جديد)
+    listEl.querySelectorAll('.item-edit').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const list = inp.dataset.kind === 'part' ? this.currentData.parts : this.currentData.services;
+        const item = list[Number(inp.dataset.idx)];
+        if (!item) return;
+        const v = Math.max(0, Number(inp.value) || 0);
+        item[inp.dataset.field] = inp.dataset.field === 'quantity' ? Math.max(1, v) : v;
+        if (inp.dataset.kind === 'part') {
+          item.totalPrice = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+        } else if (Number(item.quantity) > 0) {
+          item.price = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+        }
+        const totalEl = inp.closest('.pos-added-item-row')?.querySelector('.item-line-total');
+        if (totalEl) totalEl.textContent = `${inp.dataset.kind === 'part' ? item.totalPrice : item.price} ج.م`;
+        this.recalculateCashierTotals(container);
+      });
+    });
 
     // ربط أحداث الحذف
     listEl.querySelectorAll('.btn-remove-service').forEach(btn => {
@@ -1308,10 +1398,13 @@ export const cashierView = {
 
     const plateVal = this.platePicker.getValue();
 
+    const brandVal = brandInput.value.trim();
+    const modelVal = modelInput.value.trim();
     const custResult = await customerService.saveCustomerWithCar({
       customerId: this.currentData.customer.id,
-      name, phone,
-      carId: this.currentData.car.id,
+      name: this.currentData.customer.id ? (this.currentData.customer.name || name) : name,
+      phone,
+      carId: this.currentData.customer.id ? this.resolveCarId(this.platePicker.getValue().plateFull, brandVal, modelVal) : null,
       brand: brandInput.value.trim() || 'هيونداي',
       model: modelInput.value.trim() || '',
       plateLetters: plateVal.letters,
@@ -1350,7 +1443,7 @@ export const cashierView = {
       plateLetters: plateVal.letters, plateNumbers: plateVal.numbers, plateFull: plateVal.plateFull,
       problem: this.currentData.carProblem || 'صيانة وضبط دوري',
       futureNeeds: this.currentData.nextService || '',
-      suspensionNote: this.currentData.suspensionNote || '',
+      suspensionNote: this.currentData.services.filter(x => x.category === 'suspension').map(x => x.customNote || x.name).filter(Boolean).join(' | '),
       diagnosis: 'تم الفحص والصيانة وضبط المقاسات بنجاح',
       services: this.currentData.services,
       parts: this.currentData.parts,
@@ -1358,6 +1451,7 @@ export const cashierView = {
       subTotal, discountAmount, netTotal,
       cashAmount: cash, vodafoneCashAmount: vodafone, instaPayAmount: insta,
       totalPaid, remainingBalance, paymentStatus,
+      payments: financeService.initialPayments(this.invoiceDateIso(), cash, vodafone, insta),
       date: this.invoiceDateIso(), createdAt: new Date().toISOString(),
       isBackdated: this.currentData.invoiceDate !== this.todayLocal()
     };
@@ -1409,6 +1503,90 @@ export const cashierView = {
     if (chosen === this.todayLocal()) return new Date().toISOString();
     const [y, m, d] = chosen.split('-').map(Number);
     return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+  },
+
+  // عميل مسجل: الاسم بيتملى ويتقفل، وعربياته كلها بتظهر للاختيار (أو عربية جديدة)
+  applyReturningCustomer(container, profile) {
+    const phoneInput = container.querySelector('#cashierPhoneInput');
+    const nameInput = container.querySelector('#cashierNameInput');
+    this.lockedPhone = profile.phone;
+    this.currentData.customer = { id: profile.id, name: profile.name, phone: profile.phone };
+    phoneInput.value = profile.phone;
+    nameInput.value = profile.name;
+    nameInput.readOnly = true;
+    nameInput.title = 'اسم عميل مسجل (مش بيتغير من هنا)';
+    nameInput.style.background = 'rgba(16,185,129,0.10)';
+    nameInput.style.borderColor = '#10B981';
+    this.customerCars = [...(profile.cars || [])].sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+    this.renderCarChooser(container);
+    if (this.customerCars.length) this.selectCustomerCar(container, this.customerCars[0].id);
+    this.showCustomerInvoiceCountBadge(container, profile.phone);
+  },
+
+  unlockCustomer(container) {
+    const nameInput = container.querySelector('#cashierNameInput');
+    this.currentData.customer.id = null;
+    this.lockedPhone = '';
+    this.customerCars = [];
+    this.currentData.car.id = null;
+    if (nameInput) {
+      nameInput.readOnly = false;
+      nameInput.title = '';
+      nameInput.style.background = '';
+      nameInput.style.borderColor = '';
+      nameInput.value = '';
+      this.currentData.customer.name = '';
+    }
+    const chooser = container.querySelector('#cashierCarChooser');
+    if (chooser) { chooser.style.display = 'none'; chooser.innerHTML = ''; }
+    const badge = container.querySelector('#cashierFoundCustomerBadge');
+    if (badge) badge.style.display = 'none';
+  },
+
+  renderCarChooser(container) {
+    const chooser = container.querySelector('#cashierCarChooser');
+    if (!chooser) return;
+    const cars = this.customerCars || [];
+    chooser.style.display = 'flex';
+    chooser.innerHTML = `
+      <span style="font-size:12.5px;font-weight:800;color:var(--text-secondary);">🚗 عربيات العميل:</span>
+      ${cars.map(c => `
+        <button type="button" class="btn btn-secondary car-choice" data-car-id="${c.id}"
+          style="font-size:12.5px;font-weight:700;height:32px;padding:0 10px;border-radius:16px;white-space:nowrap;">
+          ${c.brand || ''} ${c.model || ''} ${c.plateFull ? `[${c.plateFull}]` : ''}
+        </button>`).join('')}
+      <button type="button" class="btn btn-secondary car-choice" data-car-id=""
+        style="font-size:12.5px;font-weight:800;height:32px;padding:0 10px;border-radius:16px;border-style:dashed;">➕ عربية جديدة</button>`;
+    chooser.querySelectorAll('.car-choice').forEach(b => b.addEventListener('click', () => this.selectCustomerCar(container, b.dataset.carId)));
+  },
+
+  selectCustomerCar(container, carId) {
+    const car = (this.customerCars || []).find(c => c.id === carId) || null;
+    this.currentData.car.id = car ? car.id : null;
+    this.currentData.car.brand = car ? (car.brand || '') : '';
+    this.currentData.car.model = car ? (car.model || '') : '';
+    container.querySelector('#cashierCarBrand').value = this.currentData.car.brand;
+    container.querySelector('#cashierCarModel').value = this.currentData.car.model;
+    this.platePicker.setValues(car ? car.plateLetters || '' : '', car ? car.plateNumbers || '' : '', car?.plateType || 'private');
+    container.querySelectorAll('#cashierCarChooser .car-choice').forEach(b => {
+      const active = (b.dataset.carId || '') === (carId || '');
+      b.style.background = active ? '#2563EB' : '';
+      b.style.color = active ? '#FFFFFF' : '';
+      b.style.borderColor = active ? '#60A5FA' : '';
+    });
+  },
+
+  // العربية اللي هتتسجل عليها الفاتورة: نفس اللوحة لعربية مسجلة = نفس العربية، غير كده عربية جديدة
+  resolveCarId(plateFull, brand, model) {
+    const cars = this.customerCars || [];
+    const norm = (x) => String(x || '').replace(/\s+/g, '').trim();
+    if (norm(plateFull)) {
+      const same = cars.find(c => norm(c.plateFull) === norm(plateFull));
+      return same ? same.id : null;
+    }
+    const selected = cars.find(c => c.id === this.currentData.car.id);
+    if (selected && !norm(selected.plateFull) && (selected.brand || '') === (brand || '') && (selected.model || '') === (model || '')) return selected.id;
+    return null;
   },
 
   // إظهار عدد فواتير العميل السابقة بجانب بياناته (والضغط عليه يفتح سجله)

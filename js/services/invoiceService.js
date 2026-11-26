@@ -5,8 +5,17 @@
 import { db } from '../db/indexeddb.js';
 import { toast } from '../components/toast.js';
 import { syncEngine } from '../sync/syncEngine.js';
+import { financeService } from './financeService.js';
+import { showCollectDebtModal } from '../components/financeModals.js';
 import { inventoryService } from './inventoryService.js';
 import { customerService } from './customerService.js';
+
+// الكمية/سعر الوحدة/الإجمالي لكل بند في الفاتورة
+// الخدمات اللي ليها عدد (ترصيص، كاوتش) بتطلع بعددها، والباقي (زوايا، عفشة، مخرطة...) بيطلع "-"
+const svcQty = (s) => (Number(s.quantity) > 0 ? Number(s.quantity) : '-');
+const svcUnit = (s) => (Number(s.quantity) > 0 ? (Number(s.unitPrice) || Math.round((Number(s.price) || 0) / Number(s.quantity))) : (Number(s.price) || 0));
+const partQty = (p) => Number(p.quantity) || 1;
+const partTotal = (p) => (Number(p.unitPrice) || 0) * partQty(p) || Number(p.totalPrice) || 0;
 
 export const invoiceService = {
   // حساب المجموع والخصومات والمدفوعات بدقة
@@ -156,6 +165,7 @@ export const invoiceService = {
       ...totals,
       createdAt: new Date().toISOString()
     };
+    maintenanceRecord.payments = financeService.initialPayments(maintenanceRecord.date, totals.cashAmount, totals.vodafoneCashAmount, totals.instaPayAmount);
 
     await db.add('maintenance', maintenanceRecord);
 
@@ -322,14 +332,14 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
           <tbody>
             ${(invoice.services || []).map(s => `
               <tr>
-                <td>• ${s.name} ${s.customNote ? `(${s.customNote})` : ''} ${s.addons?.length ? `(${s.addons.map(a => a.name).join('+')})` : ''}</td>
+                <td>• ${s.name}${Number(s.quantity) > 0 ? ` ×${s.quantity}` : ''} ${s.customNote && !String(s.name).includes(s.customNote) ? `(${s.customNote})` : ''} ${s.addons?.length ? `(${s.addons.map(a => a.name).join('+')})` : ''}</td>
                 <td>${s.price} ج.م</td>
               </tr>
             `).join('')}
             ${(invoice.parts || []).map(p => `
               <tr>
-                <td>• ${p.name} (×${p.quantity})</td>
-                <td>${p.totalPrice} ج.م</td>
+                <td>• ${p.name} (×${partQty(p)})</td>
+                <td>${partTotal(p)} ج.م</td>
               </tr>
             `).join('')}
           </tbody>
@@ -447,12 +457,12 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
                   <td style="text-align: center; font-weight: 700;">${idx + 1}</td>
                   <td>
                     <strong>${s.name}</strong>
-                    ${s.customNote ? `<div style="font-size: 12px; color: #444;">• ${s.customNote}</div>` : ''}
+                    ${s.customNote && !String(s.name).includes(s.customNote) ? `<div style="font-size: 12px; color: #444;">• ${s.customNote}</div>` : ''}
                     ${s.addons?.length ? `<div style="font-size: 12px; color: #555;">(${s.addons.map(a => a.name).join(' + ')})</div>` : ''}
                   </td>
                   <td style="text-align: center;">خدمة مصنعية</td>
-                  <td style="text-align: center;">1</td>
-                  <td style="text-align: left;">${s.price} ج.م</td>
+                  <td style="text-align: center;">${svcQty(s)}</td>
+                  <td style="text-align: left;">${svcUnit(s)} ج.م</td>
                   <td style="text-align: left; font-weight: 700;">${s.price} ج.م</td>
                 </tr>
               `).join('')}
@@ -464,9 +474,9 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
                     ${p.isCustom ? '<small style="color: #666;"> (صنف خارجي)</small>' : ''}
                   </td>
                   <td style="text-align: center;">قطع غيار</td>
-                  <td style="text-align: center;">${p.quantity}</td>
+                  <td style="text-align: center;">${partQty(p)}</td>
                   <td style="text-align: left;">${p.unitPrice} ج.م</td>
-                  <td style="text-align: left; font-weight: 700;">${p.totalPrice} ج.م</td>
+                  <td style="text-align: left; font-weight: 700;">${partTotal(p)} ج.م</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -996,12 +1006,12 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
             <tr>
               <td>
                 <strong>${s.name}</strong>
-                ${s.customNote ? `<div style="font-size: 11px; color: #444;">• ${s.customNote}</div>` : ''}
+                ${s.customNote && !String(s.name).includes(s.customNote) ? `<div style="font-size: 11px; color: #444;">• ${s.customNote}</div>` : ''}
                 ${s.addons?.length ? `<div style="font-size: 10px; color: #555;">(${s.addons.map(a => a.name).join(' + ')})</div>` : ''}
               </td>
               <td style="font-size: 11px; text-align: center;">مصنعية صيانة</td>
-              <td style="text-align: center;">1</td>
-              <td style="text-align: center;">${s.price} ج.م</td>
+              <td style="text-align: center;">${svcQty(s)}</td>
+              <td style="text-align: center;">${svcUnit(s)} ج.م</td>
               <td style="text-align: center; font-weight: 700;">${s.price} ج.م</td>
             </tr>
           `).join('')}
@@ -1012,9 +1022,9 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
                 ${p.isCustom ? '<span style="font-size: 10px; color: #666;"> (خارجي)</span>' : ''}
               </td>
               <td style="font-size: 11px; text-align: center;">قطع غيار</td>
-              <td style="text-align: center;">${p.quantity}</td>
+              <td style="text-align: center;">${partQty(p)}</td>
               <td style="text-align: center;">${p.unitPrice} ج.م</td>
-              <td style="text-align: center; font-weight: 700;">${p.totalPrice} ج.م</td>
+              <td style="text-align: center; font-weight: 700;">${partTotal(p)} ج.م</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1093,14 +1103,14 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
         <tbody>
           ${(invoice.services || []).map(s => `
             <tr>
-              <td>• ${s.name} ${s.customNote ? `(${s.customNote})` : ''}</td>
+              <td>• ${s.name}${Number(s.quantity) > 0 ? ` ×${s.quantity}` : ''}</td>
               <td style="text-align: center;">${s.price} ج.م</td>
             </tr>
           `).join('')}
           ${(invoice.parts || []).map(p => `
             <tr>
-              <td>• ${p.name} (×${p.quantity})</td>
-              <td style="text-align: center;">${p.totalPrice} ج.م</td>
+              <td>• ${p.name} (×${partQty(p)})</td>
+              <td style="text-align: center;">${partTotal(p)} ج.م</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1259,6 +1269,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
             <div style="display: flex; gap: 8px;">
               <button type="button" class="btn btn-primary btn-hist-pdf" data-inv-id="${i.id}" style="padding: 6px 14px; font-size: 13.5px; min-height: 38px; font-weight: 800;">📄 فتح PDF</button>
               <button type="button" class="btn btn-secondary btn-hist-print" data-inv-id="${i.id}" style="padding: 6px 12px; font-size: 13.5px; min-height: 38px;">🖨️ طباعة</button>
+              ${Number(i.remainingBalance) > 0 && !i._remote ? `<button type="button" class="btn btn-success btn-hist-collect" data-inv-id="${i.id}" style="padding: 6px 12px; font-size: 13.5px; min-height: 38px; font-weight: 800;">💰 تحصيل</button>` : ''}
             </div>
           </div>`;
         }).join('')}
@@ -1268,6 +1279,10 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
       results.querySelectorAll('.btn-hist-pdf').forEach(btn => btn.addEventListener('click', async () => {
         const target = byId(btn.dataset.invId);
         if (target) await this.openInvoicePdf(target);
+      }));
+      results.querySelectorAll('.btn-hist-collect').forEach(btn => btn.addEventListener('click', () => {
+        const target = byId(btn.dataset.invId);
+        if (target) showCollectDebtModal(target, () => run());
       }));
       results.querySelectorAll('.btn-hist-print').forEach(btn => btn.addEventListener('click', async () => {
         const target = byId(btn.dataset.invId);
@@ -1390,6 +1405,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
             <button type="button" class="btn btn-secondary" data-act="print" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;">🖨️ طباعة</button>
             <button type="button" class="btn btn-secondary" data-act="thermal" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;">🧾 بون</button>
             <button type="button" class="btn btn-secondary" data-act="wa" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 14px; min-height: 38px;" title="إرسال واتساب">📱</button>
+            ${Number(inv.remainingBalance) > 0 ? `<button type="button" class="btn btn-success" data-act="collect" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px; font-weight: 800;">💰 تحصيل</button>` : ''}
           </div>
         </div>`;
     };
@@ -1447,6 +1463,10 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
       } else if (act === 'print') await this.printInvoice(inv, 'standard');
       else if (act === 'thermal') await this.printInvoice(inv, 'thermal');
       else if (act === 'wa') this.sendWhatsApp(inv);
+      else if (act === 'collect') showCollectDebtModal(inv, (updated) => {
+        Object.assign(inv, updated);
+        apply();
+      });
     });
 
     let debounceTimer;
