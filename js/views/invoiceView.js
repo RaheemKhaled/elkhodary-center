@@ -1165,10 +1165,13 @@ export const invoiceView = {
     });
 
     btnSaveAndPrint.addEventListener('click', async () => {
+      // ضغطة واحدة بس عشان الفاتورة متتسجلش مرتين
+      if (btnSaveAndPrint.disabled) return;
+      btnSaveAndPrint.disabled = true;
       // فتح التاب فوراً في لحظة نقرة المستخدم لمنع حظر النوافذ المنبثقة من المتصفح
       let preOpenedTab = null;
       try {
-        preOpenedTab = window.open('about:blank', '_blank');
+        if (!invoiceService.isDesktop()) preOpenedTab = window.open('about:blank', '_blank');
         if (preOpenedTab) {
           preOpenedTab.document.write(`
             <!DOCTYPE html>
@@ -1189,7 +1192,8 @@ export const invoiceView = {
         console.warn('Could not pre-open tab synchronously:', e);
       }
 
-      await this.saveAndProcessInvoice(container, preOpenedTab);
+      const ok = await this.saveAndProcessInvoice(container, preOpenedTab);
+      if (!ok) btnSaveAndPrint.disabled = false;
     });
   },
 
@@ -1215,12 +1219,14 @@ export const invoiceView = {
       toast.success(`تم حفظ الفاتورة بنجاح برقم: ${invoice.id}`);
 
       // فتح الفاتورة الرقمية في تاب مستقلة لكي يصورها العميل بموبايله مباشرة
-      await invoiceService.openInvoiceDigitalView(invoice, 'standard', preOpenedTab);
+      await invoiceService.deliverNewInvoice(invoice, preOpenedTab);
 
       this.showPostSaveModal(invoice);
+      return true;
     } catch (error) {
       console.error(error);
       toast.error(`حدث خطأ أثناء حفظ الفاتورة: ${error.message}`);
+      return false;
     }
   },
 
@@ -1268,7 +1274,7 @@ export const invoiceView = {
     document.body.appendChild(overlay);
 
     overlay.querySelector('#btnWizardOpenDigital').addEventListener('click', async () => {
-      await invoiceService.openInvoiceDigitalView(invoice, 'standard');
+      await invoiceService.openInvoicePdf(invoice);
     });
 
     overlay.querySelector('#btnPrintThermal').addEventListener('click', () => {

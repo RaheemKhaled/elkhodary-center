@@ -4,7 +4,7 @@
  * تضمن تحميل أحدث التعديلات فوراً وتعمل بكفاءة تامة عند انقطاع الاتصال
  */
 
-const CACHE_NAME = 'almarkaz-cache-v21';
+const CACHE_NAME = 'almarkaz-cache-v27';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -14,6 +14,8 @@ const ASSETS_TO_CACHE = [
   './css/wizard.css',
   './css/print.css',
   './js/app.js',
+  './js/config.js',
+  './js/services/localBackupService.js',
   './js/db/schema.js',
   './js/db/indexeddb.js',
   './js/db/seed.js',

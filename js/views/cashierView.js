@@ -22,6 +22,7 @@ export const cashierView = {
     ]);
 
     this.currentData = {
+      invoiceDate: this.todayLocal(),
       customer: { id: null, name: '', phone: '' },
       car: { id: null, brand: 'هيونداي', model: '', plateLetters: '', plateNumbers: '', plateFull: '', plateType: 'private' },
       carProblem: '',
@@ -56,6 +57,11 @@ export const cashierView = {
               <span>سجل الفواتير (F3)</span>
               <span id="cashierInvoicesCountBadge" class="badge" style="background:#0F172A;color:#93C5FD;padding:2px 7px;font-size:12px;border-radius:10px;">0</span>
             </button>
+            <!-- زر سجل العميل برقم التليفون -->
+            <button type="button" class="btn btn-primary" id="btnOpenCustomerHistory" style="font-size:13.5px;font-weight:800;padding:6px 14px;min-height:36px;background:linear-gradient(135deg, #059669, #047857);display:flex;align-items:center;gap:6px;border:1px solid #34D399;">
+              <span>🔎</span>
+              <span>سجل عميل بالتليفون (F4)</span>
+            </button>
           </div>
           <div style="display:flex;gap:8px;">
             <button type="button" class="btn btn-secondary" id="btnResetCashierForm" style="font-size:14px;padding:6px 14px;min-height:36px;">
@@ -69,13 +75,19 @@ export const cashierView = {
 
         <!-- شريط تنبيه آخر فاتورة تم حفظها (يظهر تلقائياً ويثبت الفاتورة فوراً للوصول السريع) -->
         <div id="cashierLastSavedBar" style="display:none;background:#064E3B;border:1.5px solid #10B981;padding:8px 16px;margin:8px 16px 0;border-radius:8px;justify-content:space-between;align-items:center;flex-shrink:0;">
-          <div id="cashierLastSavedText" style="color:#D1FAE5;font-weight:800;font-size:14px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button type="button" class="btn btn-primary" id="btnOpenLastInvoicePdf" style="font-size:13px;font-weight:800;padding:4px 14px;min-height:32px;background:#10B981;border:none;">
+          <div id="cashierLastSavedText" style="flex:1;min-width:0;color:#D1FAE5;font-weight:800;font-size:14px;"></div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button type="button" class="btn btn-primary" id="btnOpenLastInvoicePdf" style="font-size:13px;font-weight:800;padding:4px 14px;min-height:32px;background:#10B981;border:none;white-space:nowrap;">
               📄 فتح الفاتورة PDF
             </button>
-            <button type="button" class="btn btn-secondary" id="btnPrintLastInvoicePrint" style="font-size:13px;padding:4px 12px;min-height:32px;">
+            <button type="button" class="btn btn-secondary" id="btnPrintLastInvoicePrint" style="font-size:13px;padding:4px 12px;min-height:32px;white-space:nowrap;">
               🖨️ طباعة
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnThermalLastInvoice" style="font-size:13px;padding:4px 12px;min-height:32px;white-space:nowrap;">
+              🧾 بون حراري
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnWhatsAppLastInvoice" style="font-size:13px;padding:4px 12px;min-height:32px;white-space:nowrap;">
+              📱 واتساب
             </button>
           </div>
         </div>
@@ -90,7 +102,16 @@ export const cashierView = {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#60A5FA;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 <span>بيانات العميل والسيارة</span>
               </h2>
-              <div id="cashierFoundCustomerBadge" class="badge badge-success" style="display:none;font-size:12px;padding:3px 8px;"></div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div id="cashierFoundCustomerBadge" class="badge badge-success" style="display:none;font-size:12px;padding:3px 8px;"></div>
+                <label for="cashierInvoiceDate" style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:700;color:var(--text-secondary);">
+                  📅 تاريخ الفاتورة:
+                  <input type="date" id="cashierInvoiceDate" class="form-control" value="${this.currentData.invoiceDate}" max="${this.currentData.invoiceDate}"
+                    title="بيتحط تاريخ النهارده تلقائياً، غيّره لو بتدخل فاتورة قديمة"
+                    style="height:34px;min-height:34px;width:150px;font-size:14px;font-weight:700;padding:0 8px;direction:ltr;">
+                </label>
+                <span id="cashierBackdateBadge" class="badge" style="display:none;font-size:12px;padding:3px 8px;background:rgba(245,158,11,0.18);color:#FCD34D;border:1px solid #F59E0B;">⚠️ فاتورة بتاريخ قديم</span>
+              </div>
             </div>
 
             <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 1fr;gap:10px;margin-bottom:10px;">
@@ -265,7 +286,7 @@ export const cashierView = {
                     صنف خارجي يدوي
                   </button>
                 </div>
-                <div style="display:flex;gap:4px;align-items:center;">
+                <div style="display:flex;gap:4px;align-items:flex-end;">
                   <div style="position:relative;flex:1;">
                     <input type="text" id="cashierPartSearchInput" class="form-control"
                       placeholder="ابحث عن قطعة (تيل، بارات، مسمار...)" autocomplete="off"
@@ -274,12 +295,18 @@ export const cashierView = {
                       style="display:none;position:absolute;bottom:100%;right:0;left:0;background:var(--bg-surface-elevated);border:1px solid var(--border-color);border-radius:8px;box-shadow:var(--shadow-lg);z-index:600;max-height:200px;overflow-y:auto;margin-bottom:4px;">
                     </div>
                   </div>
-                  <input type="number" id="cashierPartPriceInput" class="form-control"
-                    placeholder="السعر" min="0" value="0"
-                    style="width:70px;height:38px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;background:var(--bg-surface-elevated);border-color:var(--border-color);">
-                  <input type="number" id="cashierPartQtyInput" class="form-control"
-                    placeholder="عدد" min="1" value="1"
-                    style="width:48px;height:38px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;background:var(--bg-surface-elevated);border-color:var(--border-color);">
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:1px;margin:0;">
+                    <span style="font-size:10.5px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">سعر القطعة (ج)</span>
+                    <input type="number" id="cashierPartPriceInput" class="form-control"
+                      placeholder="السعر" min="0" value="0" title="سعر القطعة الواحدة بالجنيه"
+                      style="width:78px;height:38px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;background:var(--bg-surface-elevated);border-color:var(--border-color);">
+                  </label>
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:1px;margin:0;">
+                    <span style="font-size:10.5px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">العدد</span>
+                    <input type="number" id="cashierPartQtyInput" class="form-control"
+                      placeholder="عدد" min="1" value="1" title="عدد القطع"
+                      style="width:52px;height:38px;font-size:13px;font-weight:700;text-align:center;padding:0 2px;background:var(--bg-surface-elevated);border-color:var(--border-color);">
+                  </label>
                   <button type="button" class="btn btn-primary" id="btnPosAddPart"
                     style="font-size:12.5px;font-weight:600;height:38px;padding:0 10px;border-radius:6px;white-space:nowrap;">
                     + إضافة
@@ -366,12 +393,9 @@ export const cashierView = {
             </div>
 
             <div style="display:flex;gap:10px;">
-              <button type="button" class="btn btn-secondary" id="btnQuickPayFullCashDirect" style="font-size:14px;padding:8px 18px;min-height:46px;">
-                تحصيل كاش سريع
-              </button>
-              <button type="button" class="btn btn-success" id="btnOpenCheckoutModal" style="font-size:16px;font-weight:700;padding:8px 26px;min-height:46px;gap:8px;">
+              <button type="button" class="btn btn-success" id="btnOpenCheckoutModal" style="font-size:17px;font-weight:800;padding:8px 30px;min-height:50px;gap:8px;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                <span>متابعة الحساب والطباعة (F2)</span>
+                <span>💵 تحصيل وطباعة الفاتورة (F2)</span>
               </button>
             </div>
           </div>
@@ -413,6 +437,7 @@ export const cashierView = {
       this.currentData.customer.phone = query;
       if (query.length < 2) { dropdown.style.display = 'none'; badge.style.display = 'none'; return; }
       debounceTimer = setTimeout(async () => {
+        if (query.replace(/\D/g, '').length >= 11) this.showCustomerInvoiceCountBadge(container, query);
         const suggestions = await customerService.getAutocompleteSuggestions(query);
         if (!suggestions.length) { dropdown.style.display = 'none'; return; }
         dropdown.innerHTML = suggestions.map(s => `
@@ -440,6 +465,7 @@ export const cashierView = {
             badge.innerHTML = `✅ عميل مسجل: <strong>${nm}</strong>`;
             badge.style.display = 'inline-block';
             dropdown.style.display = 'none';
+            this.showCustomerInvoiceCountBadge(container, ph);
           });
         });
       }, 150);
@@ -836,6 +862,18 @@ export const cashierView = {
     }
 
     container.querySelector('#btnResetCashierForm').addEventListener('click', () => this.render(container));
+
+    // تاريخ الفاتورة (النهارده افتراضياً، وممكن يتغير لفاتورة قديمة، مش مسموح بتاريخ في المستقبل)
+    const dateInput = container.querySelector('#cashierInvoiceDate');
+    const backdateBadge = container.querySelector('#cashierBackdateBadge');
+    dateInput?.addEventListener('change', () => {
+      const today = this.todayLocal();
+      let v = dateInput.value || today;
+      if (v > today) { v = today; toast.warning('مينفعش تاريخ في المستقبل، اتظبط على النهارده'); }
+      dateInput.value = v;
+      this.currentData.invoiceDate = v;
+      backdateBadge.style.display = v !== today ? 'inline-block' : 'none';
+    });
     container.querySelector('#btnSwitchToManager').addEventListener('click', () => {
       if (authService.isManager()) {
         window.app.navigate('home');
@@ -850,9 +888,14 @@ export const cashierView = {
       invoiceService.showInvoicesLogModal();
     });
 
+    // سجل العميل برقم التليفون (ياخد الرقم المكتوب في خانة التليفون لو موجود)
+    container.querySelector('#btnOpenCustomerHistory')?.addEventListener('click', () => {
+      invoiceService.showCustomerHistoryModal(container.querySelector('#cashierPhoneInput')?.value || '');
+    });
+
     container.querySelector('#btnOpenLastInvoicePdf')?.addEventListener('click', async () => {
       if (this.lastSavedInvoice) {
-        await invoiceService.openInvoiceDigitalView(this.lastSavedInvoice, 'standard');
+        await invoiceService.openInvoicePdf(this.lastSavedInvoice);
       }
     });
 
@@ -862,18 +905,17 @@ export const cashierView = {
       }
     });
 
-    this.updateTodayInvoicesBadge(container);
-
-    // زر التحصيل النقدي السريع المباشر
-    container.querySelector('#btnQuickPayFullCashDirect')?.addEventListener('click', () => {
-      this.recalculateCashierTotals(container);
-      this.currentData.cashAmount = this.calculatedNetTotal || 0;
-      this.currentData.vodafoneCashAmount = 0;
-      this.currentData.instaPayAmount = 0;
-      this.openCheckoutModal(container, servicesList);
+    container.querySelector('#btnThermalLastInvoice')?.addEventListener('click', async () => {
+      if (this.lastSavedInvoice) await invoiceService.printInvoice(this.lastSavedInvoice, 'thermal');
     });
 
-    // زر فتح نافذة منبثقة لملخص الحساب والطباعة
+    container.querySelector('#btnWhatsAppLastInvoice')?.addEventListener('click', () => {
+      if (this.lastSavedInvoice) invoiceService.sendWhatsApp(this.lastSavedInvoice);
+    });
+
+    this.updateTodayInvoicesBadge(container);
+
+    // زر واحد: يفتح نافذة الحساب والمبلغ متحط كاش بالكامل تلقائياً (ويتعدل لو الدفع فودافون/إنستا/آجل)
     container.querySelector('#btnOpenCheckoutModal')?.addEventListener('click', () => {
       this.openCheckoutModal(container, servicesList);
     });
@@ -904,6 +946,11 @@ export const cashierView = {
     const initialDiscount = Number(this.currentData.discountValue) || 0;
     const initialNet = Math.max(0, subTotal - initialDiscount);
 
+    // الافتراضي: المبلغ كله كاش، إلا لو الكاشير كان مقسّم الدفع على فودافون/إنستا
+    if (!(Number(this.currentData.vodafoneCashAmount) > 0) && !(Number(this.currentData.instaPayAmount) > 0)) {
+      this.currentData.cashAmount = initialNet;
+    }
+
     overlay.innerHTML = `
       <div class="modal-content" style="max-width:580px;padding:24px;border:1px solid var(--border-color);background:var(--bg-surface);box-shadow:var(--shadow-lg);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid var(--border-subtle);padding-bottom:10px;">
@@ -917,6 +964,7 @@ export const cashierView = {
         <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;padding:14px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--text-secondary);margin-bottom:6px;">
             <span>العميل: <strong style="color:var(--text-primary);">${name}</strong> (${phone})</span>
+            <span>📅 <strong style="color:${this.currentData.invoiceDate !== this.todayLocal() ? '#FCD34D' : 'var(--text-primary)'};">${this.currentData.invoiceDate}</strong></span>
             <span>السيارة: <strong style="color:var(--text-primary);">${this.currentData.car.brand || 'سيارة'}</strong></span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--text-secondary);margin-bottom:6px;">
@@ -1044,11 +1092,16 @@ export const cashierView = {
       if (e.target === overlay) closeModal();
     });
 
-    overlay.querySelector('#btnConfirmAndPrintInvoice').addEventListener('click', async () => {
+    const confirmBtn = overlay.querySelector('#btnConfirmAndPrintInvoice');
+    confirmBtn.addEventListener('click', async () => {
+      // ضغطة واحدة بس: أي ضغطات زيادة يتم تجاهلها عشان الفاتورة متتسجلش مرتين
+      if (confirmBtn.disabled || this.isSavingInvoice) return;
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<span>⏳ جاري الحفظ...</span>';
       // فتح التاب فوراً في لحظة نقرة المستخدم لمنع حظر النوافذ المنبثقة من المتصفح
       let preOpenedTab = null;
       try {
-        preOpenedTab = window.open('about:blank', '_blank');
+        if (!invoiceService.isDesktop()) preOpenedTab = window.open('about:blank', '_blank');
         if (preOpenedTab) {
           preOpenedTab.document.write(`
             <!DOCTYPE html>
@@ -1226,6 +1279,16 @@ export const cashierView = {
   },
 
   async processCashierInvoice(container, servicesList, preOpenedTab = null) {
+    if (this.isSavingInvoice) return;
+    this.isSavingInvoice = true;
+    try {
+      await this._processCashierInvoice(container, servicesList, preOpenedTab);
+    } finally {
+      this.isSavingInvoice = false;
+    }
+  },
+
+  async _processCashierInvoice(container, servicesList, preOpenedTab = null) {
     const phoneInput = container.querySelector('#cashierPhoneInput');
     const nameInput = container.querySelector('#cashierNameInput');
     const brandInput = container.querySelector('#cashierCarBrand');
@@ -1295,7 +1358,8 @@ export const cashierView = {
       subTotal, discountAmount, netTotal,
       cashAmount: cash, vodafoneCashAmount: vodafone, instaPayAmount: insta,
       totalPaid, remainingBalance, paymentStatus,
-      date: new Date().toISOString(), createdAt: new Date().toISOString()
+      date: this.invoiceDateIso(), createdAt: new Date().toISOString(),
+      isBackdated: this.currentData.invoiceDate !== this.todayLocal()
     };
 
     await db.add('maintenance', invoiceRecord);
@@ -1311,22 +1375,53 @@ export const cashierView = {
     }
 
     toast.success(`تم حفظ الفاتورة رقم ${invoiceId} بنجاح 🎉`);
-
-    // تخزين الفاتورة الأخيرة وتحديث شريط التنبيه وعداد اليوم فوراً
     this.lastSavedInvoice = invoiceRecord;
+
+    // فتح الفاتورة PDF (وحفظها في فولدر الأسبوع على الديسكتوب)
+    await invoiceService.deliverNewInvoice(invoiceRecord, preOpenedTab);
+
+    // تذكرة جديدة فاضية للزبون التالي تلقائياً، مع شريط آخر فاتورة للطباعة أو الواتساب
+    await this.render(container);
+    this.showLastSavedBar(container);
+    container.querySelector('#cashierPhoneInput')?.focus();
+  },
+
+  // شريط "آخر فاتورة" فوق التذكرة الجديدة: فتح PDF / طباعة / بون حراري / واتساب
+  showLastSavedBar(container) {
+    const inv = this.lastSavedInvoice;
     const lastSavedBar = container.querySelector('#cashierLastSavedBar');
     const lastSavedText = container.querySelector('#cashierLastSavedText');
-    if (lastSavedBar && lastSavedText) {
-      lastSavedText.innerHTML = `✅ آخر عملية: فاتورة رقم <strong style="color:#FFF;font-family:monospace;font-size:15px;">${invoiceId}</strong> للعميل <strong>${customer.name}</strong> (${invoiceRecord.carInfo}) بمبلغ <strong>${netTotal} ج.م</strong>`;
-      lastSavedBar.style.display = 'flex';
-    }
+    if (!inv || !lastSavedBar || !lastSavedText) return;
+    lastSavedText.innerHTML = `✅ آخر فاتورة: <strong style="color:#FFF;font-family:monospace;font-size:15px;">${inv.id}</strong> للعميل <strong>${inv.customerName}</strong> (${inv.carInfo}) بمبلغ <strong>${inv.netTotal} ج.م</strong>`;
+    lastSavedBar.style.display = 'flex';
     this.updateTodayInvoicesBadge(container);
+  },
 
-    // فتح الفاتورة PDF الإلكترونية في تاب مستقلة ليتمكن الزبون من تصويرها بالموبايل مباشرة
-    await invoiceService.openInvoiceDigitalView(invoiceRecord, 'standard', preOpenedTab);
+  // تاريخ النهارده بالتوقيت المحلي (YYYY-MM-DD)
+  todayLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
 
-    // إظهار نافذة تأكيد العملية والخيارات (مع إمكانية إرسال واتساب يدوياً بالضغط على الزر)
-    this.showPostCashierPrintModal(invoiceRecord, container);
+  // تاريخ الفاتورة: النهارده = الوقت الحالي، يوم قديم = نفس اليوم الساعة 12 الظهر (عشان التاريخ ميتغيرش مع فرق التوقيت)
+  invoiceDateIso() {
+    const chosen = this.currentData.invoiceDate || this.todayLocal();
+    if (chosen === this.todayLocal()) return new Date().toISOString();
+    const [y, m, d] = chosen.split('-').map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+  },
+
+  // إظهار عدد فواتير العميل السابقة بجانب بياناته (والضغط عليه يفتح سجله)
+  async showCustomerInvoiceCountBadge(container, phone) {
+    const badge = container.querySelector('#cashierFoundCustomerBadge');
+    if (!badge) return;
+    const h = await invoiceService.getCustomerHistoryByPhone(phone, { includeRemote: false });
+    if (!h.invoices.length) return;
+    const name = h.customer?.name || h.invoices[0].customerName || '';
+    badge.innerHTML = `✅ عميل سابق: <strong>${name}</strong> — 🧾 ${h.invoices.length} فاتورة <u style="cursor:pointer;">(عرض السجل)</u>`;
+    badge.style.display = 'inline-block';
+    badge.style.cursor = 'pointer';
+    badge.onclick = () => invoiceService.showCustomerHistoryModal(phone);
   },
 
   async updateTodayInvoicesBadge(container) {
@@ -1389,7 +1484,7 @@ export const cashierView = {
 
     // فتح العرض الإلكتروني PDF
     overlay.querySelector('#btnOpenDigitalPDF').addEventListener('click', async () => {
-      await invoiceService.openInvoiceDigitalView(invoice, 'standard');
+      await invoiceService.openInvoicePdf(invoice);
     });
 
     // طباعة A4

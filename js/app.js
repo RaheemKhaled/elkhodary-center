@@ -9,6 +9,7 @@ import { syncEngine } from './sync/syncEngine.js';
 import { authService } from './services/authService.js';
 import { invoiceService } from './services/invoiceService.js';
 import { toast } from './components/toast.js';
+import { localBackupService } from './services/localBackupService.js';
 
 // استيراد الشاشات
 import { cashierView } from './views/cashierView.js?v=30';
@@ -51,6 +52,9 @@ class App {
       // 1. فتح قاعدة البيانات وحقن البيانات التجريبية إن كانت فارغة
       await db.init();
       await seedDatabaseIfEmpty();
+
+      // نسخ احتياطي يومي تلقائي على الجهاز (نسخة الديسكتوب)
+      localBackupService.start();
 
       // 2. مراقبة حالة المزامنة والإنترنت وتحديث شريط الحالة العلوي
       this.setupSyncIndicator();
@@ -190,6 +194,18 @@ class App {
     const badgeEl = document.getElementById('topSyncStatusBadge');
     if (!badgeEl) return;
 
+    // لما توصل فواتير/بيانات من جهاز تاني: نحدّث الشاشات اللي بتعرض أرقام وتقارير
+    // (شاشة الكاشير مش بتتحدث عشان متمسحش تذكرة شغال عليها)
+    const refreshableViews = new Set(['home', 'reports', 'customers', 'inventory', 'suppliers', 'workers']);
+    window.addEventListener('sync:pulled', (e) => {
+      const modalOpen = document.querySelector('.modal-overlay');
+      const typing = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+      if (refreshableViews.has(this.currentView) && !modalOpen && !typing) {
+        this.navigate(this.currentView, {}, false);
+      }
+      toast.info(`⬇️ وصل ${e.detail.count} تحديث من الأجهزة التانية`);
+    });
+
     syncEngine.onStatusChange((status) => {
       badgeEl.className = 'status-badge';
       if (status.isSyncing) {
@@ -204,6 +220,7 @@ class App {
           <span>🟢</span>
           <span>متصل</span>
           ${status.pendingCount > 0 ? `<span class="pending-counter" title="${status.pendingCount} عملية بانتظار المزامنة">${status.pendingCount}</span>` : ''}
+          ${status.pullUnsupported ? `<span title="كود Google Apps Script محتاج تحديث عشان البيانات توصل من الأجهزة التانية">⚠️</span>` : ''}
         `;
       } else {
         badgeEl.classList.add('offline');
@@ -229,6 +246,9 @@ class App {
       if (!status.isOnline) {
         toast.warning(`الجهاز أوفلاين حالياً. لديك ${status.pendingCount} عملية محفوظة محلياً بأمان وستُرفع تلقائياً عند عودة النت.`);
         return;
+      }
+      if (status.pullUnsupported) {
+        toast.warning('البيانات بتترفع للشيت، بس مش بتوصل من الأجهزة التانية لحد ما كود Google Apps Script يتحدث (Deploy > Manage deployments > New version).');
       }
       try {
         toast.info('جاري بدء المزامنة الفورية...');
@@ -310,6 +330,12 @@ class App {
       if (e.key === 'F3') {
         e.preventDefault();
         invoiceService.showInvoicesLogModal();
+      }
+      // F4 لفتح سجل عميل برقم التليفون
+      if (e.key === 'F4' && authService.isLoggedIn()) {
+        e.preventDefault();
+        const phoneInp = document.getElementById('cashierPhoneInput');
+        invoiceService.showCustomerHistoryModal(phoneInp ? phoneInp.value : '');
       }
       // Esc للعودة للشاشة الرئيسية
       if (e.key === 'Escape') {

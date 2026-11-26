@@ -12,6 +12,7 @@ import { authService } from '../services/authService.js';
 import { supabaseService } from '../services/supabaseService.js';
 import { toast } from '../components/toast.js';
 import { modal } from '../components/modal.js';
+import { localBackupService } from '../services/localBackupService.js';
 
 export const settingsView = {
   async render(container) {
@@ -152,6 +153,33 @@ export const settingsView = {
             </button>
           </div>
         </div>
+
+        <!-- مكان حفظ الملفات على الجهاز (نسخة الديسكتوب فقط) -->
+        ${window.desktopAPI ? `
+        <div class="card" style="border-color: #F59E0B;">
+          <h2 class="card-title">
+            <span>📁</span>
+            <span>مكان حفظ الفواتير والنسخ الاحتياطية على الجهاز</span>
+          </h2>
+          <p style="color: var(--text-secondary); font-size: 17px; margin-bottom: 14px;">
+            الفواتير PDF بتتحفظ هنا في فولدر لكل أسبوع، ومعاها نسخة احتياطية يومية من كل بيانات البرنامج.
+            الإعداد ده خاص بالجهاز ده بس، فلو البرنامج اتثبت على جهاز تاني اختار له المكان المناسب.
+          </p>
+          <div style="background: var(--bg-input); padding: 14px 18px; border-radius: var(--radius-md); margin-bottom: 14px;">
+            <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 4px;">المكان الحالي:</div>
+            <div id="storageRootDisplay" style="font-size: 17px; font-weight: 800; color: #FDE68A; direction: ltr; text-align: right; word-break: break-all;">...</div>
+            <div id="storageStatusDisplay" style="font-size: 14px; color: var(--text-muted); margin-top: 6px;"></div>
+            <div id="appVersionDisplay" style="font-size: 13px; color: var(--text-muted); margin-top: 6px;"></div>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary" id="btnChooseStorageFolder">📂 تغيير المكان</button>
+            <button type="button" class="btn btn-secondary" id="btnOpenStorageFolder">🗂️ فتح فولدر الفواتير</button>
+            <button type="button" class="btn btn-secondary" id="btnBackupNowLocal">💾 نسخة احتياطية دلوقتي</button>
+            <button type="button" class="btn btn-secondary" id="btnOpenBackupsFolder">🗄️ فتح فولدر النسخ</button>
+            <button type="button" class="btn btn-secondary" id="btnResetStorageFolder">↩️ رجوع للمكان الافتراضي</button>
+          </div>
+        </div>
+        ` : ''}
 
         <!-- 2. بيانات المركز المطبوعة على الفاتورة -->
         <div class="card">
@@ -473,6 +501,50 @@ export const settingsView = {
         toast.error(`فشل الاستيراد: ${err.message}`);
       }
     });
+
+    // ===== مكان الحفظ على الجهاز (ديسكتوب) =====
+    if (window.desktopAPI) {
+      const rootEl = container.querySelector('#storageRootDisplay');
+      const statusEl = container.querySelector('#storageStatusDisplay');
+      const showInfo = (info) => {
+        if (!info || !rootEl) return;
+        rootEl.textContent = info.root;
+        const parts = [info.isCustom ? '📌 مكان مختار يدوياً' : '📄 المكان الافتراضي (المستندات)'];
+        if (info.customUnavailable) parts.push(`⚠️ المكان المختار (${info.customRoot}) مش متاح دلوقتي، فالحفظ شغال مؤقتاً في المكان الافتراضي`);
+        parts.push(info.lastBackupAt ? `آخر نسخة احتياطية: ${new Date(info.lastBackupAt).toLocaleString('ar-EG')}` : 'لسه مفيش نسخة احتياطية');
+        statusEl.innerHTML = parts.join('<br>');
+      };
+      window.desktopAPI.getStorageInfo().then(showInfo);
+      window.desktopAPI.getVersion?.().then(v => {
+        const el = container.querySelector('#appVersionDisplay');
+        if (el) el.textContent = `إصدار البرنامج: ${v} (التحديثات بتنزل تلقائياً)`;
+      });
+
+      container.querySelector('#btnChooseStorageFolder').addEventListener('click', async () => {
+        try {
+          const info = await window.desktopAPI.chooseStorageFolder();
+          showInfo(info);
+          if (!info.canceled) toast.success(`تم تغيير مكان الحفظ إلى:\n${info.root}`);
+        } catch (err) {
+          toast.error(err.message);
+        }
+      });
+      container.querySelector('#btnResetStorageFolder').addEventListener('click', async () => {
+        showInfo(await window.desktopAPI.resetStorageFolder());
+        toast.success('تم الرجوع لمكان الحفظ الافتراضي');
+      });
+      container.querySelector('#btnOpenStorageFolder').addEventListener('click', () => window.desktopAPI.openStorageFolder('root'));
+      container.querySelector('#btnOpenBackupsFolder').addEventListener('click', () => window.desktopAPI.openStorageFolder('backups'));
+      container.querySelector('#btnBackupNowLocal').addEventListener('click', async () => {
+        try {
+          const res = await localBackupService.backupNow('manual');
+          showInfo(res);
+          toast.success(`تم حفظ نسخة احتياطية:\n${res.filePath}`);
+        } catch (err) {
+          toast.error(`فشل النسخ الاحتياطي: ${err.message}`);
+        }
+      });
+    }
 
     // 2. حفظ رابط Webhook الشيتات
     const webhookInput = container.querySelector('#settingWebhookInput');

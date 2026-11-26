@@ -256,6 +256,20 @@ class Database {
     return this.add(storeName, item, pushToSync);
   }
 
+  // حفظ سجل جاي من جهاز تاني (من Google Sheets) زي ما هو بدون تغيير تواريخه وبدون إعادة رفعه
+  async putRemote(storeName, item) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction([storeName], 'readwrite');
+      tx.objectStore(storeName).put(item);
+      tx.oncomplete = () => {
+        window.dispatchEvent(new CustomEvent('db:changed', { detail: { store: storeName, action: 'put', item, remote: true } }));
+        resolve(item);
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   // حذف عنصر
   async delete(storeName, key, pushToSync = true) {
     await this.init();

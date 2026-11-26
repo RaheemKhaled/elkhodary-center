@@ -22,10 +22,13 @@ const MIME_TYPES = {
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.sql': 'text/plain; charset=utf-8'
+  '.sql': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
 };
 
-export function startLocalServer(port = 8080) {
+export function startLocalServer(port = 8080, { strictPort = false } = {}) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       // إزالة معاملات الاستعلام من المسار
@@ -65,7 +68,7 @@ export function startLocalServer(port = 8080) {
     });
 
     server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
+      if (err.code === 'EADDRINUSE' && !strictPort) {
         console.log(`Port ${port} is already in use, assuming server is running.`);
         resolve({ server: null, port });
       } else {

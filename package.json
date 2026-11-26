@@ -1,33 +1,83 @@
 {
   "name": "almarkaz-auto",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "نظام إدارة مركز صيانة السيارات وضبط الزوايا",
   "main": "desktop/main.js",
   "type": "module",
   "scripts": {
     "start": "node desktop/server.js",
-    "desktop": "electron desktop/main.js",
-    "build:win": "electron-builder --win"
+    "desktop": "electron .",
+    "build:win": "electron-builder --win --x64 --publish never",
+    "build:portable": "electron-builder --win portable --x64 --publish never"
   },
   "build": {
     "appId": "com.almarkaz.auto",
-    "productName": "المركز - إدارة صيانة السيارات",
+    "productName": "AlMarkaz",
+    "executableName": "AlMarkaz",
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "index.html",
+      "manifest.json",
+      "sw.js",
+      "css/**/*",
+      "js/**/*",
+      "!js/**/README.md",
+      "icons/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "icons/icon-512.png"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "المركز - إدارة صيانة السيارات"
-    }
+      "shortcutName": "المركز - إدارة صيانة السيارات",
+      "artifactName": "AlMarkaz-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "AlMarkaz-Portable-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "RaheemKhaled",
+        "repo": "elkhodary-center",
+        "releaseType": "release"
+      }
+    ]
   },
-  "keywords": ["pos", "automotive", "workshop"],
+  "keywords": [
+    "pos",
+    "automotive",
+    "workshop"
+  ],
   "author": "المركز",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "45.5.0",
+    "electron-builder": "26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  }
 }

@@ -3,6 +3,8 @@
  */
 
 import { db } from '../db/indexeddb.js';
+import { toast } from '../components/toast.js';
+import { syncEngine } from '../sync/syncEngine.js';
 import { inventoryService } from './inventoryService.js';
 import { customerService } from './customerService.js';
 
@@ -275,7 +277,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
       db.get('settings', 'centerPhone'),
       db.get('settings', 'centerAddress')
     ]);
-    const centerName = centerNameSetting?.value || 'المركز الهندسي لصيانة السيارات';
+    const centerName = centerNameSetting?.value || 'المركز - صيانة السيارات وضبط الزوايا';
     const centerPhone = centerPhoneSetting?.value || '';
     const centerAddress = centerAddressSetting?.value || '';
 
@@ -564,7 +566,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
     ]);
 
     const meta = {
-      centerName: centerNameSetting?.value || 'المركز الهندسي لصيانة السيارات',
+      centerName: centerNameSetting?.value || 'المركز - صيانة السيارات وضبط الزوايا',
       centerPhone: centerPhoneSetting?.value || '',
       centerAddress: centerAddressSetting?.value || '',
       waUrl: this.generateWhatsAppShareUrl(invoice)
@@ -620,6 +622,76 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
     }
     this.sendWhatsApp(invoice);
     await this.openInvoiceDigitalView(invoice, mode);
+  },
+
+  // هل البرنامج شغال كنسخة سطح مكتب (Electron) تقدر تحفظ ملفات على الجهاز؟
+  isDesktop() {
+    return Boolean(window.desktopAPI && window.desktopAPI.isDesktop);
+  },
+
+  async getCenterMeta(invoice) {
+    const [centerNameSetting, centerPhoneSetting, centerAddressSetting] = await Promise.all([
+      db.get('settings', 'centerName'),
+      db.get('settings', 'centerPhone'),
+      db.get('settings', 'centerAddress')
+    ]);
+    return {
+      centerName: centerNameSetting?.value || 'المركز - صيانة السيارات وضبط الزوايا',
+      centerPhone: centerPhoneSetting?.value || '',
+      centerAddress: centerAddressSetting?.value || '',
+      waUrl: this.generateWhatsAppShareUrl(invoice)
+    };
+  },
+
+  // حفظ الفاتورة PDF في فولدر الأسبوع على الجهاز (نسخة الديسكتوب) وفتحها تلقائياً
+  async saveInvoicePdf(invoice, { open = true } = {}) {
+    const meta = await this.getCenterMeta(invoice);
+    const html = this.buildInvoiceHtml(invoice, 'standard', meta);
+    const res = await window.desktopAPI.saveInvoicePdf({
+      html,
+      invoiceId: invoice.id,
+      date: invoice.date || invoice.createdAt,
+      open
+    });
+    if (res && res.filePath) {
+      // تسجيل مسار الملف مع الفاتورة محلياً (بدون رفع إضافي للشيت)
+      const stored = await db.get('maintenance', invoice.id);
+      if (stored) await db.put('maintenance', { ...stored, pdfPath: res.filePath }, false);
+      invoice.pdfPath = res.filePath;
+    }
+    return res;
+  },
+
+  // بعد حفظ فاتورة جديدة: ديسكتوب = حفظ PDF وفتحه، متصفح = فتح صفحة الفاتورة
+  async deliverNewInvoice(invoice, preOpenedTab = null) {
+    if (this.isDesktop()) {
+      if (preOpenedTab && !preOpenedTab.closed) {
+        try { preOpenedTab.close(); } catch (e) {}
+      }
+      try {
+        const res = await this.saveInvoicePdf(invoice, { open: true });
+        toast.success(`📁 تم حفظ الفاتورة PDF:\n${res.filePath}`);
+        return res;
+      } catch (err) {
+        console.error('PDF save failed:', err);
+        toast.error(`تعذر حفظ ملف PDF: ${err.message}`);
+        return this.openInvoiceDigitalView(invoice, 'standard');
+      }
+    }
+    return this.openInvoiceDigitalView(invoice, 'standard', preOpenedTab);
+  },
+
+  // فتح PDF فاتورة قديمة: لو الملف موجود يفتح، لو مش موجود يتعمل من جديد
+  async openInvoicePdf(invoice) {
+    if (!this.isDesktop()) return this.openInvoiceDigitalView(invoice, 'standard');
+    const stored = (await db.get('maintenance', invoice.id)) || invoice;
+    if (stored.pdfPath && await window.desktopAPI.openPdf(stored.pdfPath)) return;
+    try {
+      await this.saveInvoicePdf(stored, { open: true });
+    } catch (err) {
+      toast.error(`تعذر فتح ملف PDF: ${err.message}`);
+      return this.openInvoiceDigitalView(stored, 'standard');
+    }
   },
 
   // بناء كود الـ HTML الأنيق والمتوافق تماماً مع الطباعة والحفظ كـ PDF
@@ -1057,6 +1129,158 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
   },
 
   // نافذة عرض وسجل وبحث الفواتير السابقة
+  normalizePhone(phone) {
+    let digits = String(phone || '').replace(/\D/g, '');
+    if (digits.length === 10 && digits.startsWith('1')) digits = '0' + digits;
+    if (digits.length === 12 && digits.startsWith('20')) digits = '0' + digits.substring(2);
+    return digits;
+  },
+
+  // كل فواتير العميل برقم التليفون: من الجهاز أولاً، ومن Google Sheets لو فيه فواتير من أجهزة تانية
+  async getCustomerHistoryByPhone(phone, { includeRemote = true } = {}) {
+    const target = this.normalizePhone(phone);
+    if (!target) return { phone: target, invoices: [], customer: null, cars: [], remoteChecked: false };
+
+    const [allInvoices, customers, cars] = await Promise.all([
+      db.getAll('maintenance'),
+      db.getAll('customers'),
+      db.getAll('cars')
+    ]);
+    const local = allInvoices.filter(inv => this.normalizePhone(inv.customerPhone) === target);
+    const customer = customers.find(c => this.normalizePhone(c.phone) === target) || null;
+    const customerCars = customer ? cars.filter(c => c.customerId === customer.id) : [];
+
+    let remoteChecked = false;
+    let remoteOnly = [];
+    if (includeRemote && navigator.onLine) {
+      const remote = await syncEngine.fetchRemoteCustomerHistory(target);
+      if (remote) {
+        remoteChecked = true;
+        const localIds = new Set(local.map(i => i.id));
+        remoteOnly = (remote.invoices || []).filter(i => i && i.id && !localIds.has(i.id)).map(i => ({ ...i, _remote: true }));
+      }
+    }
+
+    const invoices = [...local, ...remoteOnly].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    return { phone: target, invoices, customer, cars: customerCars, remoteChecked };
+  },
+
+  async showCustomerHistoryModal(initialPhone = '') {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay active';
+    overlay.innerHTML = `
+      <div class="modal-content" style="max-width: 950px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 22px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 28px;">🔎</span>
+            <h2 style="font-size: 24px; font-weight: 900; margin: 0; color: #FFFFFF;">سجل العميل برقم التليفون</h2>
+          </div>
+          <button type="button" class="btn btn-secondary" id="btnCloseHistoryModal" style="padding: 6px 16px; min-height: 40px; font-size: 16px;">✕ إغلاق</button>
+        </div>
+        <form id="historySearchForm" style="display: flex; gap: 10px; margin-bottom: 14px;">
+          <input type="tel" id="historyPhoneInput" class="form-control" placeholder="01xxxxxxxxx" maxlength="13"
+            value="${this.normalizePhone(initialPhone)}"
+            style="flex: 1; height: 48px; font-size: 22px; font-weight: 800; direction: ltr; text-align: right;">
+          <button type="submit" class="btn btn-primary" style="padding: 0 24px; height: 48px; font-size: 16px; font-weight: 800;">🔍 بحث</button>
+        </form>
+        <div id="historyResults" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector('#historyPhoneInput');
+    const results = overlay.querySelector('#historyResults');
+    const money = (n) => `${(Number(n) || 0).toLocaleString('ar-EG')} ج.م`;
+
+    const run = async () => {
+      const phone = this.normalizePhone(input.value);
+      if (phone.length < 10) {
+        results.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:18px;">اكتب رقم تليفون العميل (11 رقم) واضغط بحث.</div>`;
+        return;
+      }
+      results.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:18px;">⏳ جاري البحث...</div>`;
+      const h = await this.getCustomerHistoryByPhone(phone);
+      const inv = h.invoices;
+
+      if (!inv.length && !h.customer) {
+        results.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:18px;">
+          لا يوجد عميل أو فواتير مسجلة على الرقم <strong style="direction:ltr;display:inline-block;">${phone}</strong>
+          ${h.remoteChecked ? '' : '<div style="font-size:14px;margin-top:8px;">(تم البحث في بيانات الجهاز فقط)</div>'}
+        </div>`;
+        return;
+      }
+
+      const name = h.customer?.name || inv[0]?.customerName || '—';
+      const total = inv.reduce((s, i) => s + (Number(i.netTotal) || 0), 0);
+      const paid = inv.reduce((s, i) => s + (Number(i.totalPaid) || 0), 0);
+      const remaining = inv.reduce((s, i) => s + (Number(i.remainingBalance) || 0), 0);
+      const lastVisit = inv[0] ? new Date(inv[0].date || inv[0].createdAt).toLocaleDateString('ar-EG') : '—';
+      const carsText = h.cars.length
+        ? h.cars.map(c => `${c.brand || ''} ${c.model || ''} [${c.plateFull || `${c.plateLetters || ''} ${c.plateNumbers || ''}`}]`).join(' | ')
+        : [...new Set(inv.map(i => i.carInfo).filter(Boolean))].join(' | ') || '—';
+      const card = (label, value, color) => `
+        <div style="background: var(--bg-surface-elevated); border: 1.5px solid var(--border-color); border-radius: 10px; padding: 10px 14px; text-align: center;">
+          <div style="font-size: 13px; color: var(--text-muted);">${label}</div>
+          <div style="font-size: 22px; font-weight: 900; color: ${color};">${value}</div>
+        </div>`;
+
+      results.innerHTML = `
+        <div style="background: rgba(37,99,235,0.12); border: 2px solid #3B82F6; border-radius: 12px; padding: 14px 18px;">
+          <div style="font-size: 22px; font-weight: 900; color: #FFF;">👤 ${name}
+            <span style="direction:ltr;display:inline-block;color:#38BDF8;font-size:18px;margin-right:8px;">${phone}</span></div>
+          <div style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">🚗 ${carsText}</div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px;">
+            ${card('عدد الفواتير', inv.length, '#60A5FA')}
+            ${card('إجمالي الفواتير', money(total), '#34D399')}
+            ${card('المدفوع', money(paid), '#A7F3D0')}
+            ${card('المتبقي عليه', money(remaining), remaining > 0 ? '#F87171' : '#34D399')}
+            ${card('آخر زيارة', lastVisit, '#FBBF24')}
+          </div>
+          ${h.remoteChecked ? '' : '<div style="font-size:12.5px;color:var(--text-muted);margin-top:8px;">ℹ️ النتائج من بيانات الجهاز (Google Sheets غير متاح حالياً)</div>'}
+        </div>
+        ${inv.map(i => {
+          const d = new Date(i.date || i.createdAt);
+          const services = (i.services || []).map(s => s.name).join('، ');
+          return `
+          <div style="background: var(--bg-surface-elevated); border: 1.5px solid var(--border-color); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 250px; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <strong style="color: #60A5FA; font-size: 15px; font-family: monospace;">${i.id}</strong>
+                <span style="font-size: 13px; color: var(--text-muted);">${d.toLocaleDateString('ar-EG')} ${d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                ${i._remote ? '<span class="badge" style="font-size:11px;background:rgba(16,185,129,0.15);color:#6EE7B7;">من Google Sheets</span>' : ''}
+              </div>
+              <div style="font-size: 14px; color: var(--text-secondary);">🚗 ${i.carInfo || ''} ${i.plateFull ? `| <span style="color:#FBBF24;font-weight:700;">[ ${i.plateFull} ]</span>` : ''}</div>
+              ${services ? `<div style="font-size: 13px; color: var(--text-muted);">🔧 ${services}</div>` : ''}
+            </div>
+            <div style="text-align: left;">
+              <div style="font-size: 18px; font-weight: 900; color: #34D399;">${money(i.netTotal)}</div>
+              <div style="font-size: 13px; color: var(--text-muted);">${Number(i.remainingBalance) > 0 ? `<span style="color:#F87171;font-weight:800;">متبقي ${money(i.remainingBalance)}</span>` : 'خالص ✅'}</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-primary btn-hist-pdf" data-inv-id="${i.id}" style="padding: 6px 14px; font-size: 13.5px; min-height: 38px; font-weight: 800;">📄 فتح PDF</button>
+              <button type="button" class="btn btn-secondary btn-hist-print" data-inv-id="${i.id}" style="padding: 6px 12px; font-size: 13.5px; min-height: 38px;">🖨️ طباعة</button>
+            </div>
+          </div>`;
+        }).join('')}
+      `;
+
+      const byId = (id) => inv.find(x => x.id === id);
+      results.querySelectorAll('.btn-hist-pdf').forEach(btn => btn.addEventListener('click', async () => {
+        const target = byId(btn.dataset.invId);
+        if (target) await this.openInvoicePdf(target);
+      }));
+      results.querySelectorAll('.btn-hist-print').forEach(btn => btn.addEventListener('click', async () => {
+        const target = byId(btn.dataset.invId);
+        if (target) await this.printInvoice(target, 'standard');
+      }));
+    };
+
+    overlay.querySelector('#historySearchForm').addEventListener('submit', (e) => { e.preventDefault(); run(); });
+    overlay.querySelector('#btnCloseHistoryModal').addEventListener('click', () => overlay.remove());
+    setTimeout(() => input.focus(), 50);
+    run();
+  },
+
   async showInvoicesLogModal(initialQuery = '') {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay active';
@@ -1166,7 +1390,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
           const invId = btn.dataset.invId;
           const targetInv = items.find(x => x.id === invId);
           if (targetInv) {
-            await this.openInvoiceDigitalView(targetInv, 'standard');
+            await this.openInvoicePdf(targetInv);
           }
         });
       });

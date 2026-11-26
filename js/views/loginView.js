@@ -80,31 +80,6 @@ export const loginView = {
             </button>
           </form>
 
-          <!-- بطاقات الدخول السريع للاختبار أو التسهيل -->
-          <div style="margin-top: 26px; padding-top: 20px; border-top: 1px dashed var(--border-color);">
-            <div style="font-size: 14px; color: var(--text-muted); font-weight: 700; margin-bottom: 10px; text-align: center;">
-              ⚡ اختصارات الدخول السريع:
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <button 
-                type="button" 
-                class="btn btn-secondary" 
-                id="btnQuickLoginAdmin"
-                style="padding: 8px 10px; font-size: 14px; font-weight: 800; border-color: #F59E0B; color: #FDE68A; background: rgba(245,158,11,0.1); justify-content: center;"
-              >
-                👑 دخول كمدير (admin)
-              </button>
-              <button 
-                type="button" 
-                class="btn btn-secondary" 
-                id="btnQuickLoginCashier"
-                style="padding: 8px 10px; font-size: 14px; font-weight: 800; border-color: #3B82F6; color: #93C5FD; background: rgba(59,130,246,0.1); justify-content: center;"
-              >
-                🧑‍💼 دخول ككاشير (cashier)
-              </button>
-            </div>
-          </div>
-
         </div>
       </div>
     `;
@@ -161,19 +136,6 @@ export const loginView = {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       doLogin(userInp.value, passInp.value);
-    });
-
-    // أزرار الدخول السريع
-    container.querySelector('#btnQuickLoginAdmin').addEventListener('click', () => {
-      userInp.value = 'admin';
-      passInp.value = 'admin';
-      doLogin('admin', 'admin');
-    });
-
-    container.querySelector('#btnQuickLoginCashier').addEventListener('click', () => {
-      userInp.value = 'cashier';
-      passInp.value = '1234';
-      doLogin('cashier', '1234');
     });
 
     // تركيز أوتوماتيكي
