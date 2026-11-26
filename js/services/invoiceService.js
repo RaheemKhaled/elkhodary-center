@@ -1281,169 +1281,190 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
     run();
   },
 
+  // سجل كل الفواتير: بحث + فلترة بالتاريخ + فتح أي فاتورة PDF تاني أو طباعتها
   async showInvoicesLogModal(initialQuery = '') {
+    const PAGE = 50;
+    const pad = (n) => String(n).padStart(2, '0');
+    const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const invDay = (inv) => dayKey(new Date(inv.date || inv.createdAt));
+    const money = (n) => `${(Number(n) || 0).toLocaleString('ar-EG')} ج.م`;
+    const today = new Date();
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - ((today.getDay() + 1) % 7)); // السبت
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const ranges = {
+      today: [dayKey(today), dayKey(today)],
+      week: [dayKey(weekStart), dayKey(today)],
+      month: [dayKey(monthStart), dayKey(today)],
+      all: ['', '']
+    };
+
+    const allInvoices = (await db.getAll('maintenance'))
+      .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    const isDesktop = this.isDesktop();
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay active';
-
-    const [invoices, todayInvoices] = await Promise.all([
-      this.getInvoices({ limit: 100, query: initialQuery }),
-      this.getTodayInvoices()
-    ]);
-
     overlay.innerHTML = `
-      <div class="modal-content" style="max-width: 950px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 22px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 14px;">
+      <div class="modal-content" style="max-width: 1000px; width: 96%; max-height: 92vh; display: flex; flex-direction: column; padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 28px;">📋</span>
             <div>
-              <h2 style="font-size: 24px; font-weight: 900; margin: 0; color: #FFFFFF;">سجل فواتير المركز والبحث السريع</h2>
-              <div style="font-size: 14px; color: var(--text-muted); margin-top: 2px;">
-                فواتير اليوم: <strong style="color: #38BDF8;">${todayInvoices.length}</strong> | إجمالي المسجل: <strong style="color: #34D399;">${invoices.length}</strong>
-              </div>
+              <h2 style="font-size: 23px; font-weight: 900; margin: 0; color: #FFFFFF;">سجل الفواتير</h2>
+              <div style="font-size: 13.5px; color: var(--text-muted); margin-top: 2px;">كل الفواتير المسجلة: <strong style="color: #34D399;">${allInvoices.length}</strong> — افتح أي فاتورة PDF أو اطبعها تاني</div>
             </div>
           </div>
-          <button type="button" class="btn btn-secondary" id="btnCloseLogModal" style="padding: 6px 16px; min-height: 40px; font-size: 16px;">✕ إغلاق</button>
+          <div style="display: flex; gap: 8px;">
+            ${isDesktop ? `<button type="button" class="btn btn-secondary" id="btnLogOpenFolder" style="padding: 6px 14px; min-height: 40px; font-size: 14px;">📁 فولدر الفواتير</button>` : ''}
+            <button type="button" class="btn btn-secondary" id="btnCloseLogModal" style="padding: 6px 16px; min-height: 40px; font-size: 16px;">✕ إغلاق</button>
+          </div>
         </div>
 
-        <!-- شريط البحث السريع والفلترة -->
-        <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
           <input type="text" id="logSearchInput" class="form-control"
-            placeholder="🔍 ابحث برقم الفاتورة، اسم العميل، التليفون، أو رقم اللوحة..."
-            value="${initialQuery}"
-            style="flex: 1; min-width: 280px; height: 44px; font-size: 15px;">
-          <button type="button" class="btn btn-secondary" id="btnFilterTodayInvoices" style="padding: 0 16px; height: 44px; font-size: 14px; font-weight: 700;">
-            فواتير اليوم (${todayInvoices.length})
-          </button>
-          <button type="button" class="btn btn-secondary" id="btnFilterAllInvoices" style="padding: 0 16px; height: 44px; font-size: 14px; font-weight: 700;">
-            عرض الكل
-          </button>
+            placeholder="🔍 رقم الفاتورة، اسم العميل، التليفون، أو اللوحة..." value="${initialQuery}"
+            style="flex: 1; min-width: 240px; height: 42px; font-size: 15px;">
+          <div id="logPeriodChips" style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary" data-period="today" style="height: 42px; padding: 0 14px; font-size: 14px; font-weight: 700;">النهارده</button>
+            <button type="button" class="btn btn-secondary" data-period="week" style="height: 42px; padding: 0 14px; font-size: 14px; font-weight: 700;">الأسبوع ده</button>
+            <button type="button" class="btn btn-secondary" data-period="month" style="height: 42px; padding: 0 14px; font-size: 14px; font-weight: 700;">الشهر ده</button>
+            <button type="button" class="btn btn-secondary" data-period="all" style="height: 42px; padding: 0 14px; font-size: 14px; font-weight: 700;">الكل</button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; font-size: 14px; color: var(--text-secondary); font-weight: 700;">
+          <label style="display: flex; align-items: center; gap: 6px; margin: 0;">📅 من:
+            <input type="date" id="logFromDate" class="form-control" style="height: 38px; min-height: 38px; width: 160px; direction: ltr; font-size: 14px;">
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; margin: 0;">إلى:
+            <input type="date" id="logToDate" class="form-control" style="height: 38px; min-height: 38px; width: 160px; direction: ltr; font-size: 14px;">
+          </label>
         </div>
 
-        <!-- قائمة الفواتير -->
-        <div id="invoicesLogListContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
-          <!-- سيتم بناؤه بالجافاسكربت -->
-        </div>
+        <div id="logSummary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px;"></div>
+
+        <div id="invoicesLogListContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;"></div>
       </div>
     `;
-
     document.body.appendChild(overlay);
 
-    const listContainer = overlay.querySelector('#invoicesLogListContainer');
     const searchInput = overlay.querySelector('#logSearchInput');
+    const fromInput = overlay.querySelector('#logFromDate');
+    const toInput = overlay.querySelector('#logToDate');
+    const listContainer = overlay.querySelector('#invoicesLogListContainer');
+    const summaryEl = overlay.querySelector('#logSummary');
+    const chips = [...overlay.querySelectorAll('#logPeriodChips [data-period]')];
+    let filtered = [];
+    let shown = 0;
 
-    const renderList = (items) => {
-      if (!items || items.length === 0) {
-        listContainer.innerHTML = `
-          <div style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 18px;">
-            لا توجد فواتير مطابقة للبحث.
-          </div>
-        `;
-        return;
-      }
-
-      listContainer.innerHTML = items.map(inv => {
-        const timeStr = new Date(inv.date || inv.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-        const dateStr = new Date(inv.date || inv.createdAt).toLocaleDateString('ar-EG');
-        const plate = inv.plateFull || `${inv.plateLetters || ''} ${inv.plateNumbers || ''}`.trim() || 'بدون لوحة';
-
-        return `
-          <div style="background: var(--bg-surface-elevated); border: 1.5px solid var(--border-color); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
-            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 250px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <strong style="color: #60A5FA; font-size: 16px; font-family: monospace;">${inv.id}</strong>
-                <span style="font-size: 12px; color: var(--text-muted);">${dateStr} (${timeStr})</span>
-              </div>
-              <div style="font-size: 17px; font-weight: 800; color: #FFFFFF;">
-                👤 ${inv.customerName} - <span style="direction: ltr; display: inline-block; color: #38BDF8; font-size: 15px;">${inv.customerPhone}</span>
-              </div>
-              <div style="font-size: 13.5px; color: var(--text-secondary);">
-                🚗 ${inv.carInfo} | <span style="color: #FBBF24; font-weight: 700;">[ ${plate} ]</span>
-              </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
-              <div style="font-size: 18px; font-weight: 900; color: #34D399;">
-                ${inv.netTotal} ج.م
-              </div>
-              <div style="font-size: 13px; color: var(--text-muted);">
-                المدفوع: ${inv.totalPaid} ج.م ${inv.remainingBalance > 0 ? `| <span style="color: #F87171; font-weight: 800;">متبقي ${inv.remainingBalance} ج</span>` : '| خالص ✅'}
-              </div>
-            </div>
-
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <button type="button" class="btn btn-primary btn-open-log-pdf" data-inv-id="${inv.id}" style="padding: 6px 14px; font-size: 13.5px; min-height: 38px; background: linear-gradient(135deg, #2563EB, #1D4ED8); font-weight: 800;">
-                📄 فتح PDF
-              </button>
-              <button type="button" class="btn btn-secondary btn-print-log-a4" data-inv-id="${inv.id}" style="padding: 6px 12px; font-size: 13.5px; min-height: 38px;">
-                🖨️ طباعة
-              </button>
-              <button type="button" class="btn btn-secondary btn-wa-log" data-inv-id="${inv.id}" style="padding: 6px 12px; font-size: 14px; min-height: 38px;" title="إرسال واتساب">
-                📱
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      listContainer.querySelectorAll('.btn-open-log-pdf').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const invId = btn.dataset.invId;
-          const targetInv = items.find(x => x.id === invId);
-          if (targetInv) {
-            await this.openInvoicePdf(targetInv);
-          }
-        });
-      });
-
-      listContainer.querySelectorAll('.btn-print-log-a4').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const invId = btn.dataset.invId;
-          const targetInv = items.find(x => x.id === invId);
-          if (targetInv) {
-            await this.printInvoice(targetInv, 'standard');
-          }
-        });
-      });
-
-      listContainer.querySelectorAll('.btn-wa-log').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const invId = btn.dataset.invId;
-          const targetInv = items.find(x => x.id === invId);
-          if (targetInv) {
-            this.sendWhatsApp(targetInv);
-          }
-        });
+    const highlightChip = () => {
+      const match = Object.entries(ranges).find(([, [f, t]]) => f === fromInput.value && t === toInput.value);
+      chips.forEach(c => {
+        const active = match && c.dataset.period === match[0];
+        c.style.background = active ? '#2563EB' : '';
+        c.style.color = active ? '#FFFFFF' : '';
+        c.style.borderColor = active ? '#60A5FA' : '';
       });
     };
 
-    renderList(invoices);
+    const rowHtml = (inv) => {
+      const d = new Date(inv.date || inv.createdAt);
+      const plate = inv.plateFull || `${inv.plateLetters || ''} ${inv.plateNumbers || ''}`.trim();
+      return `
+        <div style="background: var(--bg-surface-elevated); border: 1.5px solid var(--border-color); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 3px; min-width: 240px; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <strong style="color: #60A5FA; font-size: 14.5px; font-family: monospace;">${inv.id}</strong>
+              <span style="font-size: 12.5px; color: var(--text-muted);">${d.toLocaleDateString('ar-EG')} ${d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div style="font-size: 16px; font-weight: 800; color: #FFFFFF;">
+              👤 ${inv.customerName || '—'} <span style="direction: ltr; display: inline-block; color: #38BDF8; font-size: 14px;">${inv.customerPhone || ''}</span>
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary);">🚗 ${inv.carInfo || ''} ${plate ? `| <span style="color: #FBBF24; font-weight: 700;">[ ${plate} ]</span>` : ''}</div>
+          </div>
+          <div style="text-align: left; min-width: 110px;">
+            <div style="font-size: 17px; font-weight: 900; color: #34D399;">${money(inv.netTotal)}</div>
+            <div style="font-size: 12.5px; color: var(--text-muted);">${Number(inv.remainingBalance) > 0 ? `<span style="color: #F87171; font-weight: 800;">متبقي ${money(inv.remainingBalance)}</span>` : 'خالص ✅'}</div>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary" data-act="pdf" data-inv-id="${inv.id}" style="padding: 6px 14px; font-size: 13.5px; min-height: 38px; font-weight: 800; background: linear-gradient(135deg, #2563EB, #1D4ED8);">📄 فتح PDF</button>
+            <button type="button" class="btn btn-secondary" data-act="print" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;">🖨️ طباعة</button>
+            <button type="button" class="btn btn-secondary" data-act="thermal" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;">🧾 بون</button>
+            <button type="button" class="btn btn-secondary" data-act="wa" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 14px; min-height: 38px;" title="إرسال واتساب">📱</button>
+          </div>
+        </div>`;
+    };
 
-    // بحث حي
+    const renderMore = () => {
+      const next = filtered.slice(shown, shown + PAGE);
+      listContainer.querySelector('#btnLogMore')?.remove();
+      listContainer.insertAdjacentHTML('beforeend', next.map(rowHtml).join(''));
+      shown += next.length;
+      if (shown < filtered.length) {
+        listContainer.insertAdjacentHTML('beforeend', `
+          <button type="button" class="btn btn-secondary" id="btnLogMore" style="min-height: 44px; font-size: 15px; font-weight: 800; justify-content: center;">
+            ⬇️ عرض المزيد (${filtered.length - shown} فاتورة كمان)
+          </button>`);
+      }
+    };
+
+    const apply = () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const from = fromInput.value, to = toInput.value;
+      filtered = allInvoices.filter(inv => {
+        const day = invDay(inv);
+        if (from && day < from) return false;
+        if (to && day > to) return false;
+        if (!q) return true;
+        return [inv.id, inv.customerName, inv.customerPhone, inv.carInfo, inv.plateFull, inv.plateLetters, inv.plateNumbers]
+          .some(v => v && String(v).toLowerCase().includes(q));
+      });
+
+      const sum = (k) => filtered.reduce((s, i) => s + (Number(i[k]) || 0), 0);
+      const card = (label, value, color) => `
+        <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 10px; text-align: center;">
+          <div style="font-size: 12px; color: var(--text-muted);">${label}</div>
+          <div style="font-size: 17px; font-weight: 900; color: ${color};">${value}</div>
+        </div>`;
+      summaryEl.innerHTML = card('عدد الفواتير', filtered.length, '#60A5FA') + card('الإجمالي', money(sum('netTotal')), '#34D399')
+        + card('المحصّل', money(sum('totalPaid')), '#A7F3D0') + card('المتبقي', money(sum('remainingBalance')), '#F87171');
+
+      shown = 0;
+      listContainer.innerHTML = filtered.length ? '' : `<div style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 18px;">لا توجد فواتير مطابقة.</div>`;
+      if (filtered.length) renderMore();
+      highlightChip();
+    };
+
+    listContainer.addEventListener('click', async (e) => {
+      if (e.target.closest('#btnLogMore')) { renderMore(); return; }
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const inv = allInvoices.find(x => x.id === btn.dataset.invId);
+      if (!inv) return;
+      const act = btn.dataset.act;
+      if (act === 'pdf') {
+        btn.disabled = true;
+        try { await this.openInvoicePdf(inv); } finally { btn.disabled = false; }
+      } else if (act === 'print') await this.printInvoice(inv, 'standard');
+      else if (act === 'thermal') await this.printInvoice(inv, 'thermal');
+      else if (act === 'wa') this.sendWhatsApp(inv);
+    });
+
     let debounceTimer;
-    searchInput.addEventListener('input', (e) => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        const query = e.target.value.trim();
-        const results = await this.getInvoices({ query, limit: 100 });
-        renderList(results);
-      }, 200);
-    });
+    searchInput.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(apply, 200); });
+    fromInput.addEventListener('change', apply);
+    toInput.addEventListener('change', apply);
+    chips.forEach(c => c.addEventListener('click', () => {
+      [fromInput.value, toInput.value] = ranges[c.dataset.period];
+      apply();
+    }));
 
-    overlay.querySelector('#btnFilterTodayInvoices').addEventListener('click', async () => {
-      searchInput.value = '';
-      const today = await this.getTodayInvoices();
-      renderList(today);
-    });
-
-    overlay.querySelector('#btnFilterAllInvoices').addEventListener('click', async () => {
-      searchInput.value = '';
-      const all = await this.getInvoices({ limit: 100 });
-      renderList(all);
-    });
-
+    overlay.querySelector('#btnLogOpenFolder')?.addEventListener('click', () => window.desktopAPI.openInvoicesFolder());
     overlay.querySelector('#btnCloseLogModal').addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) overlay.remove();
-    });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // البداية: لو فيه بحث جاهز نعرض كل الفواتير، غير كده فواتير الشهر ده
+    [fromInput.value, toInput.value] = initialQuery ? ranges.all : ranges.month;
+    apply();
+    setTimeout(() => searchInput.focus(), 50);
   }
 };
