@@ -12,6 +12,7 @@ import { authService } from '../services/authService.js';
 import { toast } from '../components/toast.js';
 import { modal } from '../components/modal.js';
 import { localBackupService } from '../services/localBackupService.js';
+import { suggestionService, SUGGESTION_KINDS } from '../services/suggestionService.js';
 
 export const settingsView = {
   async render(container) {
@@ -191,6 +192,22 @@ export const settingsView = {
           </div>
         </div>
 
+        <!-- اقتراحات الكتابة -->
+        <div class="card" style="border-color: #8B5CF6;">
+          <h2 class="card-title"><span>💬</span><span>اقتراحات الكتابة في الكاشير</span></h2>
+          <p style="color: var(--text-secondary); font-size: 16px; margin-bottom: 12px;">
+            الاقتراحات اللي بتظهر وانت بتكتب شكوى العميل وأعمال العفشة والصيانة القادمة. عدّل أي اقتراح أو امسحه لو اتكتب غلط.
+          </p>
+          <div id="sugTabs" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+            ${Object.entries(SUGGESTION_KINDS).map(([k, v], i) => `<button type="button" class="btn ${i === 0 ? 'btn-primary' : 'btn-secondary'} sug-tab" data-kind="${k}">${v.label}</button>`).join('')}
+          </div>
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input type="text" id="sugNewInput" class="form-control" placeholder="اقتراح جديد..." style="flex: 1;">
+            <button type="button" class="btn btn-success" id="sugAddBtn">➕ إضافة</button>
+          </div>
+          <div id="sugList" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
+        </div>
+
         <!-- 4. إدارة الفنيين والعمالة -->
         <div class="card">
           <div class="card-header" style="border: none; padding: 0; margin-bottom: 16px;">
@@ -330,6 +347,39 @@ export const settingsView = {
   },
 
   attachEvents(container, services, workers, users = []) {
+    // ===== اقتراحات الكتابة: تعديل ومسح =====
+    let sugKind = 'problem';
+    const sugList = container.querySelector('#sugList');
+    const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const renderSug = async () => {
+      if (!sugList) return;
+      const items = await suggestionService.list(sugKind);
+      sugList.innerHTML = items.length ? items.map(x => `
+        <div style="display: flex; gap: 8px; align-items: center; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 10px;">
+          <input type="text" class="form-control sug-text" data-id="${x.id}" value="${esc(x.text)}" style="flex: 1; min-height: 40px;">
+          <span style="font-size: 13px; color: var(--text-muted); white-space: nowrap;">${x.useCount || 0} مرة</span>
+          <button type="button" class="btn btn-secondary sug-save" data-id="${x.id}" style="min-height: 40px;">💾 حفظ</button>
+          <button type="button" class="btn btn-danger sug-del" data-id="${x.id}" style="min-height: 40px;">🗑️</button>
+        </div>`).join('') : '<div style="color: var(--text-muted); padding: 10px;">مفيش اقتراحات هنا لسه.</div>';
+      sugList.querySelectorAll('.sug-save').forEach(b => b.addEventListener('click', async () => {
+        const val = sugList.querySelector(`.sug-text[data-id="${b.dataset.id}"]`).value;
+        try { await suggestionService.rename(b.dataset.id, val); toast.success('اتعدل الاقتراح'); renderSug(); } catch (e) { toast.warning(e.message); }
+      }));
+      sugList.querySelectorAll('.sug-del').forEach(b => b.addEventListener('click', async () => {
+        await suggestionService.remove(b.dataset.id); toast.success('اتمسح الاقتراح'); renderSug();
+      }));
+    };
+    container.querySelectorAll('.sug-tab').forEach(t => t.addEventListener('click', () => {
+      sugKind = t.dataset.kind;
+      container.querySelectorAll('.sug-tab').forEach(x => { x.classList.toggle('btn-primary', x === t); x.classList.toggle('btn-secondary', x !== t); });
+      renderSug();
+    }));
+    container.querySelector('#sugAddBtn')?.addEventListener('click', async () => {
+      const inp = container.querySelector('#sugNewInput');
+      try { await suggestionService.add(sugKind, inp.value); inp.value = ''; toast.success('اتضاف الاقتراح'); renderSug(); } catch (e) { toast.warning(e.message); }
+    });
+    suggestionService.importFromInvoicesOnce().catch(() => {}).finally(renderSug);
+
     // ===== مكان الحفظ على الجهاز (ديسكتوب) =====
     if (window.desktopAPI) {
       const rootEl = container.querySelector('#storageRootDisplay');

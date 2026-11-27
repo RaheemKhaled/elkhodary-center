@@ -5,7 +5,7 @@
  */
 
 export const DB_NAME = 'AlMarkazAutoDB';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export const SCHEMA_DOCS = {
   // 1. العملاء (Customers)

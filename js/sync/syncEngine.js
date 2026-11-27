@@ -17,10 +17,10 @@ const PULL_CURSOR_KEY = 'syncPullCursor';
 // الجداول اللي بتتسحب من الأجهزة التانية
 const PULLABLE_STORES = new Set([
   'customers', 'cars', 'maintenance', 'services', 'workers', 'workerAttendance', 'workerExpenses',
-  'parts', 'sales', 'suppliers', 'supplierInvoices', 'purchases', 'supplierPayments', 'expenses'
+  'parts', 'sales', 'suppliers', 'supplierInvoices', 'purchases', 'supplierPayments', 'expenses', 'suggestions'
 ]);
 // جداول محتاجة نسخة أحدث من كود الشيت: بتفضل محفوظة في الطابور لحد ما الكود يتحدث
-const ENTITY_MIN_API = { expenses: 2 };
+const ENTITY_MIN_API = { expenses: 2, suggestions: 3 };
 
 class SyncEngine {
   constructor() {
@@ -273,7 +273,7 @@ class SyncEngine {
           try { localStorage.setItem('almarkaz_api_version', String(apiVersion)); } catch (e) {}
           setTimeout(() => this.triggerSync(), 300);
         }
-        this.scriptNeedsUpdate = apiVersion < 2;
+        this.scriptNeedsUpdate = apiVersion < 3;
 
         if (data.rows.length) {
           applied += await this.applyRemoteRows(data.rows);

@@ -19,7 +19,7 @@
  * عشان الرابط نفسه يفضل شغال بالكود الجديد.
  */
 
-var API_VERSION = 2; // 2 = بيدعم جدول المصروفات
+var API_VERSION = 3; // 2 = المصروفات، 3 = اقتراحات الكتابة
 var SPREADSHEET_ID = '1yWk_nSVMuj1e2FwvJkKAo-pb1UiTkg5HEdveq12myZc';
 
 function getSpreadsheet() {
@@ -171,7 +171,8 @@ function getSheetNameForEntity(entityType) {
     'supplierInvoices': 'Supplier_Invoices',
     'purchases': 'Purchases',
     'supplierPayments': 'Supplier_Payments',
-    'expenses': 'Expenses'
+    'expenses': 'Expenses',
+    'suggestions': 'Suggestions'
   };
   return map[entityType] || null;
 }
@@ -221,6 +222,8 @@ function getHeadersForSheet(sheetName) {
       return ['كود التوريد', 'رقم الفاتورة الورقية', 'كود المورد', 'اسم المورد', 'تاريخ الفاتورة', 'تاريخ الاستحقاق', 'مبلغ الفاتورة', 'المدفوع', 'المتبقي', 'الحالة'];
     case 'Purchases':
       return ['كود الشراء المركب', 'كود التوريد', 'رقم الفاتورة', 'كود القطعة', 'اسم القطعة', 'سعر الشراء', 'الكمية', 'الإجمالي', 'التاريخ'];
+    case 'Suggestions':
+      return ['الكود', 'النوع', 'النص', 'عدد مرات الاستخدام', 'ممسوح؟', 'آخر تحديث'];
     case 'Expenses':
       return ['كود المصروف', 'التاريخ', 'المبلغ', 'طريقة الدفع', 'البند', 'الصنايعي', 'البيان', 'سجله'];
     case 'Supplier_Payments':
@@ -271,6 +274,9 @@ function objectToRow(entityType, obj) {
       return [obj.id, obj.invoiceNumber || '', obj.supplierId, obj.supplierName || '', obj.invoiceDate || '', obj.dueDate || '', obj.totalAmount || 0, obj.paidAmount || 0, obj.remainingAmount || 0, obj.status || ''];
     case 'purchases':
       return [obj.id, obj.supplierInvoiceId, obj.invoiceNumber || '', obj.partId, obj.partName || '', obj.unitCost || 0, obj.quantity || 0, obj.totalCost || 0, obj.createdAt || ''];
+    case 'suggestions':
+      var kinds = { problem: 'شكوى عميل', suspension: 'أعمال عفشة', nextService: 'صيانة قادمة' };
+      return [obj.id, kinds[obj.kind] || obj.kind || '', obj.text || '', obj.useCount || 0, obj.isDeleted ? 'نعم' : 'لا', obj.updatedAt || ''];
     case 'expenses':
       var methods = { cash: 'نقدي', vodafone: 'فودافون كاش', insta: 'إنستا باي' };
       var cats = { labor: 'مصروف عمالة', parts: 'شراء قطع غيار', delivery: 'دليفري', other: 'أخرى' };

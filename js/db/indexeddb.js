@@ -158,6 +158,12 @@ class Database {
           store.createIndex('category', 'category', { unique: false });
         }
 
+        // 12c. اقتراحات الكتابة (شكاوي، عفشة، صيانة قادمة)
+        if (!db.objectStoreNames.contains('suggestions')) {
+          const store = db.createObjectStore('suggestions', { keyPath: 'id' });
+          store.createIndex('kind', 'kind', { unique: false });
+        }
+
         // 13. الإعدادات
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
@@ -327,7 +333,7 @@ class Database {
       'customers', 'cars', 'maintenance', 'services', 'workers',
       'workerAttendance', 'workerExpenses',
       'parts', 'sales', 'suppliers', 'supplierInvoices', 'purchases',
-      'supplierPayments', 'expenses', 'users', 'settings'
+      'supplierPayments', 'expenses', 'suggestions', 'users', 'settings'
     ];
     const backup = {
       version: 1,

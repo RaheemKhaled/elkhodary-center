@@ -10,6 +10,8 @@ import { inventoryService } from '../services/inventoryService.js';
 import { invoiceService } from '../services/invoiceService.js';
 import { financeService } from '../services/financeService.js';
 import { showExpenseModal } from '../components/financeModals.js';
+import { suggestionService } from '../services/suggestionService.js';
+import { syncEngine } from '../sync/syncEngine.js';
 import { authService } from '../services/authService.js';
 import { EgyptianPlatePicker } from '../components/platePicker.js?v=21';
 import { toast } from '../components/toast.js';
@@ -482,14 +484,19 @@ export const cashierView = {
       if (!b || !mdl) continue;
       (models[b] = models[b] || new Set()).add(mdl);
     }
-    const problems = byFreq(invoices.map(i => i.problem).filter(p => p && p !== 'صيانة وضبط دوري'));
+    // الشكاوي والعفشة والصيانة القادمة من القائمة اللي المدير بيعدّلها (بعد أول مزامنة نبدأها من الفواتير القديمة)
+    if (!syncEngine.webhookUrl || syncEngine.lastPullAt) {
+      await suggestionService.importFromInvoicesOnce().catch(() => {});
+    }
+    const texts = async (kind) => (await suggestionService.list(kind)).map(x => x.text);
+    const problems = await texts('problem');
     return {
       brands: [...new Set([...usedBrands, ...COMMON_BRANDS])],
       models: Object.fromEntries(Object.entries(models).map(([k, v]) => [k, [...v]])),
       problems,
       topProblems: problems.slice(0, 6),
-      nextServices: byFreq(invoices.map(i => i.futureNeeds)),
-      suspension: byFreq(invoices.flatMap(i => (i.services || []).filter(x => x.category === 'suspension').map(x => x.customNote || String(x.name || '').replace(/^صيانة عفشة:\s*/, ''))))
+      nextServices: await texts('nextService'),
+      suspension: await texts('suspension')
     };
   },
 
@@ -1521,6 +1528,17 @@ export const cashierView = {
     };
 
     await db.add('maintenance', invoiceRecord);
+
+    // أي شكوى/عفشة/صيانة قادمة جديدة بتتضاف لاقتراحات الكتابة
+    try {
+      for (const p of String(invoiceRecord.problem || '').split('،')) {
+        if (p.trim() && p.trim() !== 'صيانة وضبط دوري') await suggestionService.recordUse('problem', p);
+      }
+      if (invoiceRecord.futureNeeds) await suggestionService.recordUse('nextService', invoiceRecord.futureNeeds);
+      for (const x of invoiceRecord.services.filter(x => x.category === 'suspension')) {
+        await suggestionService.recordUse('suspension', x.customNote || String(x.name || '').replace(/^صيانة عفشة:\s*/, ''));
+      }
+    } catch (e) { console.warn('suggestions:', e); }
 
     for (const partItem of this.currentData.parts) {
       if (partItem.id) {
