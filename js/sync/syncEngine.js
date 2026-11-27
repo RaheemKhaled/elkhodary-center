@@ -43,7 +43,11 @@ class SyncEngine {
 
   async init() {
     const setting = await db.get('settings', 'googleSheetsWebhookUrl');
-    this.webhookUrl = (setting && setting.value) ? String(setting.value).trim() : (APP_CONFIG.GOOGLE_SHEETS_WEBHOOK_URL || '');
+    // الرابط المدمج في البرنامج (config.local.js) هو الأساس، ولو المدير حط رابط تاني في الإعدادات بيتستخدم هو
+    let localCfg = {};
+    try { localCfg = (await import('../config.local.js')).LOCAL_CONFIG || {}; } catch (e) { localCfg = {}; }
+    this.builtInUrl = String(localCfg.GOOGLE_SHEETS_WEBHOOK_URL || APP_CONFIG.GOOGLE_SHEETS_WEBHOOK_URL || '').trim();
+    this.webhookUrl = (setting && String(setting.value || '').trim()) || this.builtInUrl;
 
     window.addEventListener('online', () => {
       this.isOnline = true;
@@ -81,7 +85,7 @@ class SyncEngine {
   }
 
   setWebhookUrl(url) {
-    const next = String(url || '').trim() || APP_CONFIG.GOOGLE_SHEETS_WEBHOOK_URL || '';
+    const next = String(url || '').trim() || this.builtInUrl || '';
     if (next !== this.webhookUrl) db.put('settings', { key: PULL_CURSOR_KEY, value: 0 }, false); // شيت جديد = نسحب من الأول
     this.webhookUrl = next;
     this.consecutiveFailures = 0;
@@ -241,7 +245,7 @@ class SyncEngine {
 
   // ===== السحب من Google Sheets: كل تغيير اتعمل على أي جهاز تاني بيوصل هنا =====
   async pullChanges() {
-    if (this.isPulling || !this.webhookUrl || !navigator.onLine) return 0;
+    if (this.isPulling || !this.webhookUrl) return 0;
     this.isPulling = true;
     let applied = 0;
     try {
@@ -262,6 +266,7 @@ class SyncEngine {
           break;
         }
         this.pullUnsupported = false;
+        this.isOnline = true;
         const apiVersion = Number(data.apiVersion) || 1;
         if (apiVersion !== this.serverApiVersion) {
           this.serverApiVersion = apiVersion;
@@ -284,6 +289,7 @@ class SyncEngine {
         window.dispatchEvent(new CustomEvent('sync:pulled', { detail: { count: applied } }));
       }
     } catch (err) {
+      if (err instanceof TypeError) this.isOnline = false; // مفيش نت فعلاً
       console.warn('⚠️ تعذر سحب التحديثات من Google Sheets:', err.message);
     } finally {
       this.isPulling = false;

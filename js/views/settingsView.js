@@ -27,7 +27,7 @@ export const settingsView = {
       db.get('settings', 'centerAddress')
     ]);
 
-    const webhookUrl = webhookSetting?.value || '';
+    const webhookUrl = webhookSetting?.value || syncEngine.builtInUrl || '';
     const centerName = centerNameSetting?.value || 'مركز صيانة السيارات وضبط الزوايا';
     const centerPhone = centerPhoneSetting?.value || '';
     const centerAddress = centerAddressSetting?.value || '';
