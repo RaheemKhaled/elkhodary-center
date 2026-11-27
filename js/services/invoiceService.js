@@ -805,7 +805,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
           <div class="kv"><span>فودافون كاش</span><strong>${money(voda)}</strong></div>
           <div class="kv"><span>إنستا باي</span><strong>${money(insta)}</strong></div>
           <div class="kv total-line"><span>إجمالي المدفوع</span><strong>${money(paid)}</strong></div>
-          <div class="kv"><span>المتبقي (آجل)</span><strong class="${remaining > 0 ? 'due' : ''}">${money(remaining)}</strong></div>
+          ${remaining > 0 ? `<div class="kv"><span>المتبقي (آجل)</span><strong class="due">${money(remaining)}</strong></div>` : ''}
           ${payments.length > 1 ? `<div class="pay-hist">${payments.map(p => `<div>${new Date(p.date).toLocaleDateString('ar-EG')}: ${money((Number(p.cash) || 0) + (Number(p.vodafone) || 0) + (Number(p.insta) || 0))}${p.note ? ` (${esc(p.note)})` : ''}</div>`).join('')}</div>` : ''}
         </div>
         <div class="sum-card">
