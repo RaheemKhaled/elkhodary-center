@@ -481,3 +481,11 @@ textarea.form-control {
     display: none;
   }
 }
+
+/* أيقونة التاريخ بيضا وواضحة على الخلفية الغامقة */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(2);
+  opacity: 1;
+  cursor: pointer;
+}
+input[type="date"] { color-scheme: dark; }

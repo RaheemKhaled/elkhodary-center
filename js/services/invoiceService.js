@@ -15,6 +15,8 @@ import { customerService } from './customerService.js';
 const svcQty = (s) => (Number(s.quantity) > 0 ? Number(s.quantity) : '-');
 const svcUnit = (s) => (Number(s.quantity) > 0 ? (Number(s.unitPrice) || Math.round((Number(s.price) || 0) / Number(s.quantity))) : (Number(s.price) || 0));
 const partQty = (p) => Number(p.quantity) || 1;
+// إزالة أي إيموجي من الفاتورة
+const stripEmoji = (html) => String(html).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu, '');
 const partTotal = (p) => (Number(p.unitPrice) || 0) * partQty(p) || Number(p.totalPrice) || 0;
 
 export const invoiceService = {
@@ -274,6 +276,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
 
   // طباعة الفاتورة بالطريقة الأصلية الموثوقة 100% بدون فتح أي تبويبات بيضاء أو تهنيج
   async printInvoice(invoice, mode = 'standard') {
+    if (mode !== 'thermal') return this.printStandardInvoice(invoice);
     const printContainer = document.getElementById('printableInvoiceContainer');
     if (!printContainer) {
       console.warn('printableInvoiceContainer not found, calling window.print() directly');
@@ -546,6 +549,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
       `;
     }
 
+    printContainer.innerHTML = stripEmoji(printContainer.innerHTML);
     setTimeout(() => {
       window.print();
     }, 150);
@@ -704,8 +708,226 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
     }
   },
 
-  // بناء كود الـ HTML الأنيق والمتوافق تماماً مع الطباعة والحفظ كـ PDF
-  buildInvoiceHtml(invoice, mode, meta) {
+  // تصميم الفاتورة الموحد (فتح PDF + الطباعة): هيدر وفوتر ثابتين في كل صفحة، جدول بكورنرات مدورة،
+  // نمرة مصرية، تفاصيل طرق الدفع، ومن غير توقيعات ولا إيموجي
+  buildInvoiceHtml(invoice, mode = 'standard', meta = {}) {
+    if (mode === 'thermal') return this.buildInvoiceHtmlLegacy(invoice, mode, meta);
+
+    const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const money = (n) => `${(Number(n) || 0).toLocaleString('ar-EG')} ج.م`;
+    const d = new Date(invoice.date || invoice.createdAt);
+    const dateText = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeText = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const services = invoice.services || [];
+    const parts = invoice.parts || [];
+    const subTotal = Number(invoice.subTotal) || services.reduce((s, x) => s + (Number(x.price) || 0), 0) + parts.reduce((s, p) => s + partTotal(p), 0);
+    const discount = Number(invoice.discountAmount) || 0;
+    const net = Number(invoice.netTotal) || Math.max(0, subTotal - discount);
+    const cash = Number(invoice.cashAmount) || 0;
+    const voda = Number(invoice.vodafoneCashAmount) || 0;
+    const insta = Number(invoice.instaPayAmount) || 0;
+    const paid = Number(invoice.totalPaid) || (cash + voda + insta);
+    const remaining = Number(invoice.remainingBalance) || Math.max(0, net - paid);
+    const payments = Array.isArray(invoice.payments) ? invoice.payments : [];
+    const letters = esc(invoice.plateLetters || '');
+    const numbers = esc(invoice.plateNumbers || '');
+    const hasPlate = (invoice.plateLetters || invoice.plateNumbers);
+    const workers = Array.isArray(invoice.workers) ? invoice.workers.join('، ') : (invoice.workers || '');
+    const statusText = remaining > 0 ? (paid > 0 ? 'مدفوع جزئياً' : 'آجل') : 'مدفوعة بالكامل';
+    const statusClass = remaining > 0 ? 'st-due' : 'st-paid';
+
+    const rows = [
+      ...services.map(s => ({
+        name: esc(s.name) + (s.customNote && !String(s.name).includes(s.customNote) ? `<div class="sub">${esc(s.customNote)}</div>` : '') +
+          (s.addons?.length ? `<div class="sub">${esc(s.addons.map(a => a.name).join(' + '))}</div>` : ''),
+        type: 'مصنعية', qty: svcQty(s), unit: money(svcUnit(s)), total: money(s.price)
+      })),
+      ...parts.map(p => ({ name: esc(p.name), type: 'قطع غيار', qty: partQty(p), unit: money(p.unitPrice), total: money(partTotal(p)) }))
+    ];
+
+    const header = `
+      <div class="hdr">
+        <div class="hdr-main">
+          <div class="center-name">${esc(meta.centerName || 'المركز')}</div>
+          <div class="center-sub">صيانة السيارات وضبط الزوايا والعفشة</div>
+          <div class="center-contact">${esc(meta.centerAddress || '')}${meta.centerAddress && meta.centerPhone ? ' &nbsp;|&nbsp; ' : ''}${meta.centerPhone ? `تليفون: <span dir="ltr">${esc(meta.centerPhone)}</span>` : ''}</div>
+        </div>
+        <div class="inv-box">
+          <div class="inv-title">فاتورة صيانة</div>
+          <div class="inv-no" dir="ltr">${esc(invoice.id)}</div>
+          <div class="inv-date">${dateText} — ${timeText}</div>
+        </div>
+      </div>`;
+
+    const footer = `
+      <div class="ftr">
+        <div>شكراً لثقتكم — نتمنى لكم قيادة آمنة</div>
+        <div>${esc(meta.centerName || 'المركز')}${meta.centerPhone ? ` &nbsp;|&nbsp; <span dir="ltr">${esc(meta.centerPhone)}</span>` : ''}</div>
+      </div>`;
+
+    const body = `
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-title">بيانات العميل</div>
+          <div class="kv"><span>الاسم</span><strong>${esc(invoice.customerName)}</strong></div>
+          <div class="kv"><span>التليفون</span><strong dir="ltr">${esc(invoice.customerPhone)}</strong></div>
+        </div>
+        <div class="info-card">
+          <div class="info-title">بيانات السيارة</div>
+          <div class="kv"><span>السيارة</span><strong>${esc(invoice.carInfo || '-')}</strong></div>
+          <div class="kv"><span>النمرة</span>
+            ${hasPlate ? `<div class="plate">
+              <div class="plate-top"><span>مصر</span><span>EGYPT</span></div>
+              <div class="plate-body"><span class="pl-letters">${letters}</span><span class="pl-sep"></span><span class="pl-numbers" dir="ltr">${numbers}</span></div>
+            </div>` : '<strong>-</strong>'}
+          </div>
+        </div>
+      </div>
+
+      ${(invoice.problem || invoice.futureNeeds || workers) ? `
+      <div class="notes">
+        ${invoice.problem ? `<div><span>شكوى العميل:</span> ${esc(invoice.problem)}</div>` : ''}
+        ${invoice.futureNeeds ? `<div><span>الصيانة القادمة:</span> ${esc(invoice.futureNeeds)}</div>` : ''}
+        ${workers ? `<div><span>الفنيين:</span> ${esc(workers)}</div>` : ''}
+      </div>` : ''}
+
+      <table class="items">
+        <thead><tr><th class="c">م</th><th>البيان</th><th class="c">النوع</th><th class="c">الكمية</th><th class="c">سعر الوحدة</th><th class="c">الإجمالي</th></tr></thead>
+        <tbody>
+          ${rows.map((r, i) => `<tr><td class="c">${i + 1}</td><td>${r.name}</td><td class="c">${r.type}</td><td class="c">${r.qty}</td><td class="c">${r.unit}</td><td class="c strong">${r.total}</td></tr>`).join('')}
+        </tbody>
+      </table>
+
+      <div class="bottom">
+        <div class="pay-card">
+          <div class="info-title">طرق الدفع</div>
+          <div class="kv"><span>نقدي (كاش)</span><strong>${money(cash)}</strong></div>
+          <div class="kv"><span>فودافون كاش</span><strong>${money(voda)}</strong></div>
+          <div class="kv"><span>إنستا باي</span><strong>${money(insta)}</strong></div>
+          <div class="kv total-line"><span>إجمالي المدفوع</span><strong>${money(paid)}</strong></div>
+          <div class="kv"><span>المتبقي (آجل)</span><strong class="${remaining > 0 ? 'due' : ''}">${money(remaining)}</strong></div>
+          ${payments.length > 1 ? `<div class="pay-hist">${payments.map(p => `<div>${new Date(p.date).toLocaleDateString('ar-EG')}: ${money((Number(p.cash) || 0) + (Number(p.vodafone) || 0) + (Number(p.insta) || 0))}${p.note ? ` (${esc(p.note)})` : ''}</div>`).join('')}</div>` : ''}
+        </div>
+        <div class="sum-card">
+          <div class="kv"><span>إجمالي الخدمات والقطع</span><strong>${money(subTotal)}</strong></div>
+          ${discount > 0 ? `<div class="kv"><span>الخصم</span><strong>- ${money(discount)}</strong></div>` : ''}
+          <div class="net"><span>الصافي المطلوب</span><strong>${money(net)}</strong></div>
+          <div class="status ${statusClass}">${statusText}</div>
+        </div>
+      </div>
+
+      <div class="warranty">
+        <div class="info-title">شروط الضمان</div>
+        <div>• الضمان ساري على أعمال ضبط الزوايا والترصيص لمدة 3 أيام من تاريخ الفاتورة.</div>
+        <div>• قطع الغيار تخضع لضمان الشركة المصنعة أو الوكيل.</div>
+        <div>• يرجى الاحتفاظ بالفاتورة عند أي مراجعة.</div>
+      </div>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فاتورة ${esc(invoice.id)} - ${esc(invoice.customerName)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+  :root { --navy: #0F2A4A; --blue: #1D4ED8; --sky: #E8F0FE; --line: #CBD5E1; --muted: #475569; --green: #047857; --red: #B91C1C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #E2E8F0; }
+  body { font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif; color: #0F172A; direction: rtl; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .toolbar { position: sticky; top: 0; z-index: 10; background: var(--navy); display: flex; gap: 10px; justify-content: center; padding: 10px; }
+  .toolbar button, .toolbar a { font-family: inherit; font-size: 15px; font-weight: 800; border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer; text-decoration: none; color: #fff; background: var(--blue); }
+  .toolbar .wa { background: #059669; } .toolbar .close { background: #475569; }
+  .sheet { width: 210mm; min-height: 297mm; margin: 14px auto; background: #fff; box-shadow: 0 10px 30px rgba(15,42,74,0.18); }
+  .page { width: 100%; border-collapse: collapse; }
+  .page > thead td, .page > tfoot td, .page > tbody > tr > td { padding: 0 12mm; }
+  .hdr { display: flex; justify-content: space-between; align-items: stretch; gap: 14px; padding: 9mm 0 5mm; border-bottom: 3px solid var(--navy); }
+  .center-name { font-size: 25px; font-weight: 900; color: var(--navy); line-height: 1.2; }
+  .center-sub { font-size: 13px; font-weight: 700; color: var(--blue); margin-top: 2px; }
+  .center-contact { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .inv-box { min-width: 58mm; background: linear-gradient(135deg, var(--navy), var(--blue)); color: #fff; border-radius: 12px; padding: 8px 14px; text-align: center; }
+  .inv-title { font-size: 13px; font-weight: 700; opacity: .9; } .inv-no { font-size: 15px; font-weight: 900; letter-spacing: .5px; margin: 2px 0; } .inv-date { font-size: 11.5px; opacity: .9; }
+  .ftr-space { height: 16mm; }
+  .ftr { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; color: var(--muted); border-top: 2px solid var(--navy); padding: 3mm 0 6mm; }
+  .content { padding-top: 5mm; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .info-card, .pay-card, .sum-card, .warranty { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 12px; background: #fff; }
+  .info-title { font-size: 12.5px; font-weight: 900; color: var(--blue); margin-bottom: 4px; }
+  .kv { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; padding: 2px 0; }
+  .kv span { color: var(--muted); } .kv strong { font-weight: 800; }
+  .plate { display: inline-block; border: 2px solid #111; border-radius: 6px; overflow: hidden; min-width: 120px; background: #fff; }
+  .plate-top { display: flex; justify-content: space-between; background: #2B7BD6; color: #fff; font-size: 10px; font-weight: 900; padding: 1px 7px; }
+  .plate-body { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 3px 8px; font-size: 16px; font-weight: 900; letter-spacing: 2px; }
+  .pl-sep { width: 2px; height: 18px; background: #111; }
+  .notes { margin-top: 10px; background: var(--sky); border-radius: 12px; padding: 7px 12px; font-size: 12.5px; line-height: 1.7; }
+  .notes span { font-weight: 900; color: var(--navy); }
+  table.items { width: 100%; margin-top: 10px; border-collapse: separate; border-spacing: 0; border: 1.5px solid var(--navy); border-radius: 12px; overflow: hidden; font-size: 12.5px; }
+  table.items thead th { background: var(--navy); color: #fff; font-weight: 800; padding: 6px 8px; text-align: right; }
+  table.items td { padding: 5px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+  table.items tbody tr:nth-child(even) td { background: #F8FAFC; }
+  table.items tr { page-break-inside: avoid; }
+  .c { text-align: center !important; } .strong { font-weight: 800; }
+  .sub { font-size: 11px; color: var(--muted); }
+  .bottom { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; margin-top: 10px; page-break-inside: avoid; }
+  .total-line { border-top: 1px dashed var(--line); margin-top: 3px; padding-top: 4px; }
+  .due { color: var(--red); }
+  .pay-hist { margin-top: 4px; font-size: 11px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 3px; }
+  .sum-card { display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(180deg, #fff, var(--sky)); }
+  .net { display: flex; justify-content: space-between; align-items: center; background: var(--navy); color: #fff; border-radius: 10px; padding: 8px 12px; margin-top: 6px; }
+  .net span { font-size: 14px; font-weight: 700; } .net strong { font-size: 21px; font-weight: 900; }
+  .status { text-align: center; font-weight: 900; font-size: 13px; border-radius: 10px; padding: 4px; margin-top: 6px; }
+  .st-paid { background: #D1FAE5; color: var(--green); } .st-due { background: #FEE2E2; color: var(--red); }
+  .warranty { margin-top: 10px; font-size: 11.5px; line-height: 1.7; page-break-inside: avoid; }
+  @page { size: A4; margin: 0; }
+  @media print {
+    html, body { background: #fff; }
+    .toolbar { display: none !important; }
+    .sheet { width: auto; min-height: 0; margin: 0; box-shadow: none; }
+    .ftr-wrap { position: fixed; bottom: 0; left: 0; right: 0; padding: 0 12mm; background: #fff; }
+    .ftr-space { height: 18mm; }
+    .screen-ftr { display: none; }
+  }
+  @media screen { .ftr-wrap { display: none; } }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">طباعة / حفظ PDF</button>
+    ${meta.waUrl ? `<a class="wa" href="${meta.waUrl}" target="_blank">إرسال واتساب للعميل</a>` : ''}
+    <button type="button" class="close" onclick="window.close()">إغلاق</button>
+  </div>
+  <div class="sheet">
+    <table class="page">
+      <thead><tr><td>${header}</td></tr></thead>
+      <tfoot><tr><td><div class="ftr-space"></div></td></tr></tfoot>
+      <tbody><tr><td><div class="content">${body}</div><div class="screen-ftr">${footer}</div></td></tr></tbody>
+    </table>
+  </div>
+  <div class="ftr-wrap">${footer}</div>
+</body>
+</html>`;
+    return stripEmoji(html);
+  },
+
+  // الطباعة بنفس تصميم الفاتورة (من غير ما نفتح نافذة جديدة)
+  async printStandardInvoice(invoice) {
+    const meta = await this.getCenterMeta(invoice);
+    const html = this.buildInvoiceHtml(invoice, 'standard', meta);
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;';
+    document.body.appendChild(frame);
+    frame.contentDocument.open();
+    frame.contentDocument.write(html);
+    frame.contentDocument.close();
+    await new Promise(r => setTimeout(r, 300));
+    try { await Promise.race([frame.contentDocument.fonts?.ready, new Promise(r => setTimeout(r, 2000))]); } catch (e) {}
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 60000);
+  },
+
+  // التصميم القديم: مستخدم للبون الحراري بس
+  buildInvoiceHtmlLegacy(invoice, mode, meta) {
     const dateFormatted = new Date(invoice.date || invoice.createdAt).toLocaleDateString('ar-EG', {
       year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });

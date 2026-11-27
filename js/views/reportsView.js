@@ -137,7 +137,7 @@ export const reportsView = {
         <div class="grid-2" style="margin-bottom: 24px;">
           <div class="card" style="margin: 0;">
             <h2 class="card-title"><span>⏳</span><span>العملاء اللي عليهم آجل</span></h2>
-            ${sum.debtors.length ? `<div class="table-container"><table class="data-table"><thead><tr><th>العميل</th><th>المتبقي</th><th></th></tr></thead><tbody>
+            ${sum.debtors.length ? `<div class="table-container" style="max-height: 420px; overflow-y: auto;"><table class="data-table"><thead><tr><th>العميل</th><th>المتبقي</th><th></th></tr></thead><tbody>
               ${sum.debtors.map(dbt => dbt.invoices.map(inv => `<tr>
                 <td style="font-weight: 800;">${dbt.name}<div style="font-size: 13px; color: var(--text-muted); direction: ltr; text-align: right;">${dbt.phone || ''} — ${inv.id}</div></td>
                 <td style="color: #F87171; font-weight: 900; font-size: 18px;">${inv.remainingBalance} ج.م</td>
@@ -147,7 +147,7 @@ export const reportsView = {
           </div>
           <div class="card" style="margin: 0;">
             <h2 class="card-title"><span>💸</span><span>مصروفات الفترة (${sum.expenses.length})</span></h2>
-            ${sum.expenses.length ? `<div class="table-container"><table class="data-table"><thead><tr><th>التاريخ</th><th>البند</th><th>الطريقة</th><th>المبلغ</th></tr></thead><tbody>
+            ${sum.expenses.length ? `<div class="table-container" style="max-height: 420px; overflow-y: auto;"><table class="data-table"><thead><tr><th>التاريخ</th><th>البند</th><th>الطريقة</th><th>المبلغ</th></tr></thead><tbody>
               ${sum.expenses.map(e => `<tr>
                 <td>${new Date(e.date).toLocaleDateString('ar-EG')}</td>
                 <td style="font-weight: 700;">${EXPENSE_CATEGORIES[e.category]?.label || e.category}${e.workerName ? ` (${e.workerName})` : ''}${e.description ? `<div style="font-size: 13px; color: var(--text-muted);">${e.description}</div>` : ''}</td>
@@ -188,7 +188,7 @@ export const reportsView = {
               <span>🔧</span>
               <span>أكثر الخدمات طلباً (${sum.range.label})</span>
             </h2>
-            <div class="table-container">
+            <div class="table-container" style="max-height: 420px; overflow-y: auto;">
               <table class="data-table">
                 <thead>
                   <tr>
@@ -216,13 +216,13 @@ export const reportsView = {
               <span>👨‍🔧</span>
               <span>شغل وإنتاجية الفنيين والعمالة</span>
             </h2>
-            <div class="table-container">
+            <div class="table-container" style="max-height: 420px; overflow-y: auto;">
               <table class="data-table">
                 <thead>
                   <tr>
                     <th>اسم الفني</th>
                     <th>عدد العمليات</th>
-                    <th>قيمة الشغل التقريبية</th>
+                    <th>مساهمته في شغل الأسبوع ده</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -230,7 +230,7 @@ export const reportsView = {
                     <tr>
                       <td style="font-weight: 800; font-size: 20px; color: #FFFFFF;">${w.name}</td>
                       <td><span class="badge badge-success" style="font-size: 18px;">${w.jobCount} عربيات</span></td>
-                      <td style="color: #FBBF24; font-weight: 800; font-size: 20px;">${w.approximateValue} ج.م</td>
+                      <td style="color: #FBBF24; font-weight: 800; font-size: 20px;">${w.weekValue} ج.م <span style="font-size: 15px; color: var(--text-muted);">(${w.weekShare}% — ${w.weekJobs} عربية)</span></td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -246,7 +246,7 @@ export const reportsView = {
               <span>🏆</span>
               <span>العملاء الأكثر زيارة وإنفاقاً</span>
             </h2>
-            <div class="table-container">
+            <div class="table-container" style="max-height: 420px; overflow-y: auto;">
               <table class="data-table">
                 <thead>
                   <tr>

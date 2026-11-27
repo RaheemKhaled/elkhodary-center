@@ -116,7 +116,8 @@ async function renderHtmlToPdf(html) {
     return await win.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
-      margins: { marginType: 'custom', top: 0.3, bottom: 0.3, left: 0.3, right: 0.3 }
+      preferCSSPageSize: true,
+      margins: { marginType: 'none' }
     });
   } finally {
     win.destroy();

@@ -16,12 +16,15 @@ import { toast } from '../components/toast.js';
 
 
 export const cashierView = {
-  async render(container) {
+  async render(container, params = {}) {
     const [servicesList, partsList, workersList] = await Promise.all([
       db.find('services', s => s.isActive !== false),
       inventoryService.getAllPartsWithStock(),
       db.find('workers', w => w.isActive !== false)
     ]);
+
+    // اقتراحات الكتابة: الماركات والموديلات والشكاوي وأعمال العفشة اللي اتسجلت قبل كده (بتتعلم لوحدها)
+    this.suggest = await this.buildSuggestions();
 
     // أسعار الخدمات السريعة من الإعدادات (قائمة الخدمات)
     const byId = Object.fromEntries(servicesList.map(x => [x.id, x]));
@@ -43,7 +46,7 @@ export const cashierView = {
     this.currentData = {
       invoiceDate: this.todayLocal(),
       customer: { id: null, name: '', phone: '' },
-      car: { id: null, brand: 'هيونداي', model: '', plateLetters: '', plateNumbers: '', plateFull: '', plateType: 'private' },
+      car: { id: null, brand: '', model: '', plateLetters: '', plateNumbers: '', plateFull: '', plateType: 'private' },
       carProblem: '',
       nextService: '',
       suspensionNote: '',
@@ -150,11 +153,11 @@ export const cashierView = {
               </div>
               <div>
                 <label class="form-label" for="cashierCarBrand" style="font-size:13px;margin-bottom:3px;">ماركة العربية:</label>
-                <input type="text" id="cashierCarBrand" class="form-control" placeholder="هيونداي / كيا..." value="هيونداي" style="min-height:40px;font-size:14px;">
+                <input type="text" id="cashierCarBrand" class="form-control" list="dlCarBrands" autocomplete="off" placeholder="اكتب أو اختار الماركة..." style="min-height:40px;font-size:14px;">
               </div>
               <div>
                 <label class="form-label" for="cashierCarModel" style="font-size:13px;margin-bottom:3px;">الموديل:</label>
-                <input type="text" id="cashierCarModel" class="form-control" placeholder="النترا 2021..." style="min-height:40px;font-size:14px;">
+                <input type="text" id="cashierCarModel" class="form-control" list="dlCarModels" autocomplete="off" placeholder="اكتب أو اختار الموديل..." style="min-height:40px;font-size:14px;">
               </div>
             </div>
 
@@ -162,11 +165,12 @@ export const cashierView = {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
               <div>
                 <label class="form-label" for="cashierCarProblem" style="font-size:13px;margin-bottom:3px;color:var(--text-secondary);">شكوى العميل / المشكلة:</label>
-                <input type="text" id="cashierCarProblem" class="form-control" placeholder="رعشة في الطارة، صوت في العفشة..." style="min-height:38px;font-size:13px;">
+                <input type="text" id="cashierCarProblem" class="form-control" list="dlProblems" autocomplete="off" placeholder="رعشة في الطارة، صوت في العفشة..." style="min-height:38px;font-size:13px;">
+                ${this.suggest.topProblems.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">${this.suggest.topProblems.map(t => `<button type="button" class="btn btn-secondary quick-problem" data-text="${t.replace(/"/g, '&quot;')}" style="font-size:11.5px;min-height:26px;height:26px;padding:0 8px;border-radius:13px;">${t}</button>`).join('')}</div>` : ''}
               </div>
               <div>
                 <label class="form-label" for="cashierNextService" style="font-size:13px;margin-bottom:3px;color:var(--text-secondary);">توصية الصيانة القادمة:</label>
-                <input type="text" id="cashierNextService" class="form-control" placeholder="تغيير تيل بعد 5000 كم..." style="min-height:38px;font-size:13px;">
+                <input type="text" id="cashierNextService" class="form-control" list="dlNextService" autocomplete="off" placeholder="تغيير تيل بعد 5000 كم..." style="min-height:38px;font-size:13px;">
               </div>
             </div>
 
@@ -297,7 +301,7 @@ export const cashierView = {
                   </div>
                 </div>
                 <div style="display:flex;gap:5px;align-items:center;">
-                  <input type="text" id="cashierSuspensionDesc" class="form-control"
+                  <input type="text" id="cashierSuspensionDesc" list="dlSuspension" autocomplete="off" class="form-control"
                     placeholder="بيان الشغل (مثال: تغيير مساعدين أمامي وجلب مقصات)"
                     style="flex:1;height:38px;font-size:12.5px;padding:0 8px;background:var(--bg-surface-elevated);border-color:var(--border-color);">
                   <input type="number" id="cashierSuspensionLabor" class="form-control"
@@ -442,7 +446,60 @@ export const cashierView = {
       </div>
     `;
 
+    container.insertAdjacentHTML('beforeend', `
+      <datalist id="dlCarBrands">${this.suggest.brands.map(b => `<option value="${b}"></option>`).join('')}</datalist>
+      <datalist id="dlCarModels"></datalist>
+      <datalist id="dlProblems">${this.suggest.problems.map(b => `<option value="${b}"></option>`).join('')}</datalist>
+      <datalist id="dlNextService">${this.suggest.nextServices.map(b => `<option value="${b}"></option>`).join('')}</datalist>
+      <datalist id="dlSuspension">${this.suggest.suspension.map(b => `<option value="${b}"></option>`).join('')}</datalist>`);
+
     this.initCashierComponents(container, servicesList, partsList, workersList);
+
+    if (params && params.customerId) {
+      const profile = await customerService.getCustomerFullProfile(params.customerId);
+      if (profile) this.applyReturningCustomer(container, profile);
+    } else if (params && params.prefillQuery) {
+      const ph = container.querySelector('#cashierPhoneInput');
+      ph.value = params.prefillQuery;
+      ph.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  },
+
+  // الاقتراحات بتتجمع من كل العربيات والفواتير (من كل الأجهزة بعد المزامنة)
+  async buildSuggestions() {
+    const COMMON_BRANDS = ['هيونداي', 'كيا', 'تويوتا', 'نيسان', 'شيفروليه', 'رينو', 'بيجو', 'سكودا', 'فولكس فاجن', 'ميتسوبيشي',
+      'سوزوكي', 'هوندا', 'مازدا', 'فيات', 'أوبل', 'شيري', 'إم جي', 'بي واي دي', 'جيلي', 'بروتون', 'سيات', 'مرسيدس', 'بي إم دبليو', 'جيب', 'لادا', 'دايو', 'سوبارو', 'فورد'];
+    const [cars, invoices] = await Promise.all([db.getAll('cars'), db.getAll('maintenance')]);
+    const byFreq = (values) => {
+      const m = new Map();
+      values.map(v => String(v || '').trim()).filter(v => v.length > 1).forEach(v => m.set(v, (m.get(v) || 0) + 1));
+      return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
+    };
+    const usedBrands = byFreq(cars.map(c => c.brand));
+    const models = {};
+    for (const c of cars) {
+      const b = String(c.brand || '').trim(), mdl = String(c.model || '').trim();
+      if (!b || !mdl) continue;
+      (models[b] = models[b] || new Set()).add(mdl);
+    }
+    const problems = byFreq(invoices.map(i => i.problem).filter(p => p && p !== 'صيانة وضبط دوري'));
+    return {
+      brands: [...new Set([...usedBrands, ...COMMON_BRANDS])],
+      models: Object.fromEntries(Object.entries(models).map(([k, v]) => [k, [...v]])),
+      problems,
+      topProblems: problems.slice(0, 6),
+      nextServices: byFreq(invoices.map(i => i.futureNeeds)),
+      suspension: byFreq(invoices.flatMap(i => (i.services || []).filter(x => x.category === 'suspension').map(x => x.customNote || String(x.name || '').replace(/^صيانة عفشة:\s*/, ''))))
+    };
+  },
+
+  refreshModelSuggestions(container) {
+    const brand = container.querySelector('#cashierCarBrand')?.value.trim() || '';
+    const list = container.querySelector('#dlCarModels');
+    if (!list || !this.suggest) return;
+    const exact = this.suggest.models[brand] || [];
+    const all = exact.length ? exact : [...new Set(Object.values(this.suggest.models).flat())];
+    list.innerHTML = all.map(m => `<option value="${m}"></option>`).join('');
   },
 
   initCashierComponents(container, servicesList, partsList, workersList) {
@@ -512,7 +569,14 @@ export const cashierView = {
     container.querySelector('#cashierNextService')?.addEventListener('input', e => { this.currentData.nextService = e.target.value.trim(); });
 
     // 4. الماركة والموديل
-    container.querySelector('#cashierCarBrand').addEventListener('input', e => { this.currentData.car.brand = e.target.value; });
+    container.querySelector('#cashierCarBrand').addEventListener('input', e => { this.currentData.car.brand = e.target.value; this.refreshModelSuggestions(container); });
+    this.refreshModelSuggestions(container);
+    container.querySelectorAll('.quick-problem').forEach(btn => btn.addEventListener('click', () => {
+      const inp = container.querySelector('#cashierCarProblem');
+      const t = btn.dataset.text;
+      inp.value = inp.value.trim() ? (inp.value.includes(t) ? inp.value : `${inp.value.trim()}، ${t}`) : t;
+      this.currentData.carProblem = inp.value.trim();
+    }));
     container.querySelector('#cashierCarModel').addEventListener('input', e => { this.currentData.car.model = e.target.value; });
 
     // 5. ضبط الزوايا (أمامي وخلفي وكامل)
@@ -1405,7 +1469,7 @@ export const cashierView = {
       name: this.currentData.customer.id ? (this.currentData.customer.name || name) : name,
       phone,
       carId: this.currentData.customer.id ? this.resolveCarId(this.platePicker.getValue().plateFull, brandVal, modelVal) : null,
-      brand: brandInput.value.trim() || 'هيونداي',
+      brand: brandInput.value.trim(),
       model: modelInput.value.trim() || '',
       plateLetters: plateVal.letters,
       plateNumbers: plateVal.numbers,
@@ -1567,6 +1631,7 @@ export const cashierView = {
     this.currentData.car.model = car ? (car.model || '') : '';
     container.querySelector('#cashierCarBrand').value = this.currentData.car.brand;
     container.querySelector('#cashierCarModel').value = this.currentData.car.model;
+    this.refreshModelSuggestions(container);
     this.platePicker.setValues(car ? car.plateLetters || '' : '', car ? car.plateNumbers || '' : '', car?.plateType || 'private');
     container.querySelectorAll('#cashierCarChooser .car-choice').forEach(b => {
       const active = (b.dataset.carId || '') === (carId || '');

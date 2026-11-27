@@ -41,10 +41,6 @@ export const homeView = {
               <span>واجهة الكاشير السريعة (POS)</span>
             </button>
 
-            <button type="button" class="btn btn-primary btn-huge" id="btnGoNewInvoice" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); border: 3px solid #60A5FA; font-size: 26px; justify-content: center; gap: 14px;">
-              <span style="font-size: 40px;">📝</span>
-              <span>معالج الصيانة التفصيلي (Wizard)</span>
-            </button>
           </div>
 
           <!-- زر العملاء -->
@@ -180,9 +176,6 @@ export const homeView = {
       window.app.navigate('cashier');
     });
 
-    container.querySelector('#btnGoNewInvoice')?.addEventListener('click', () => {
-      window.app.navigate('invoice');
-    });
 
     container.querySelector('#btnGoCustomers').addEventListener('click', () => {
       window.app.navigate('customers');

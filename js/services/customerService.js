@@ -140,7 +140,7 @@ export const customerService = {
       const savedCar = await this.saveCar({
         id: carId,
         customerId: savedCustomer.id,
-        brand: brand || 'هيونداي',
+        brand: brand || '',
         model: model || '',
         carType: carType || 'سيدان',
         plateLetters: plateLetters || '',

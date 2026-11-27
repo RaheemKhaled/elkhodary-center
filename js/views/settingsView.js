@@ -290,7 +290,7 @@ export const settingsView = {
                         <button type="button" class="btn btn-secondary btn-edit-user" data-user-id="${u.id}" style="padding: 4px 10px; font-size: 14px; min-height: 36px;">
                           ✏️ تعديل
                         </button>
-                        ${u.username !== 'admin' ? `
+                        ${u.id !== 'USR-RAHEEM' ? `
                           <button type="button" class="btn btn-danger btn-delete-user" data-user-id="${u.id}" data-user-name="${u.name}" style="padding: 4px 10px; font-size: 14px; min-height: 36px;">
                             🗑️ حذف
                           </button>
@@ -690,8 +690,8 @@ export const settingsView = {
 
         <div class="grid-2">
           <div class="form-group">
-            <label class="form-label">التخصص:</label>
-            <input type="text" id="workerSpecialtyInput" class="form-control" value="${w?.specialty || ''}" placeholder="زوايا، عفشة، كاوتش، مخرطة...">
+            <label class="form-label">التخصصات (ممكن أكتر من واحد):</label>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">${['زوايا', 'عفشة', 'ترصيص', 'كاوتش', 'مخرطة', 'لحام', 'عام'].map(sp => `<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border-color);border-radius:18px;cursor:pointer;font-weight:700;"><input type="checkbox" class="spec-chk" value="${sp}" ${(String(w?.specialty || '').split(/[،,]/).map(x => x.trim())).includes(sp) ? 'checked' : ''} style="width:18px;height:18px;"> ${sp}</label>`).join('')}</div>
           </div>
 
           <div class="form-group">
@@ -716,7 +716,7 @@ export const settingsView = {
     overlay.querySelector('#btnSaveWorkerModal').addEventListener('click', async () => {
       const name = overlay.querySelector('#workerNameInput').value.trim();
       const phone = overlay.querySelector('#workerPhoneInput').value.trim();
-      const specialty = overlay.querySelector('#workerSpecialtyInput').value.trim();
+      const specialty = [...overlay.querySelectorAll('.spec-chk:checked')].map(c => c.value).join('، ');
       const isActive = overlay.querySelector('#workerActiveSelect').value === 'true';
 
       if (!name) {
@@ -725,6 +725,7 @@ export const settingsView = {
       }
 
       await db.put('workers', {
+        ...(w || {}),
         id: w?.id || db.generateId('WRK'),
         name,
         phone,
@@ -768,7 +769,7 @@ export const settingsView = {
 
         <div class="form-group" style="margin-bottom: 16px;">
           <label class="form-label"><span class="required">*</span> الدور والصلاحيات:</label>
-          <select id="usrModalRole" class="form-control">
+          <select id="usrModalRole" class="form-control" ${user?.id === 'USR-RAHEEM' ? 'disabled title="حساب المدير الأساسي مش بيتغير دوره"' : ''}>
             <option value="cashier" ${user?.role === 'cashier' ? 'selected' : ''}>🧑‍💼 كاشير (محاسبة الزبائن وإصدار الفواتير فقط)</option>
             <option value="manager" ${user?.role === 'manager' ? 'selected' : ''}>👑 مدير (كامل الصلاحيات: المخزن، العمالة، التقارير، والإعدادات)</option>
           </select>
@@ -776,7 +777,7 @@ export const settingsView = {
 
         <div class="form-group" style="margin-bottom: 22px;">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 16px; font-weight: 700;">
-            <input type="checkbox" id="usrModalIsActive" ${user?.isActive !== false ? 'checked' : ''} style="width: 20px; height: 20px;">
+            <input type="checkbox" id="usrModalIsActive" ${user?.isActive !== false ? 'checked' : ''} ${user?.id === 'USR-RAHEEM' ? 'disabled' : ''} style="width: 20px; height: 20px;">
             <span>الحساب نشط ومفعل لتسجيل الدخول</span>
           </label>
         </div>

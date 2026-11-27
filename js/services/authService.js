@@ -10,6 +10,7 @@ class AuthService {
     this.ROLE_CASHIER = 'cashier';
     this.ROLE_MANAGER = 'manager';
     this.SESSION_KEY = 'almarkaz_session';
+    this.PRIMARY_MANAGER_ID = 'USR-RAHEEM'; // حساب المدير الأساسي: مينفعش يتحذف ولا يتعطل ولا يتغير دوره
     // الجلسة بتتمسح مع قفل البرنامج: كل تشغيل لازم تسجيل دخول (ومسح أي جلسة قديمة كانت محفوظة دايماً)
     try { localStorage.removeItem(this.SESSION_KEY); } catch (e) {}
   }
@@ -107,9 +108,10 @@ class AuthService {
     const name = (userData.name || '').trim();
     const username = (userData.username || '').trim().toLowerCase();
     const password = (userData.password || '').trim();
-    const role = userData.role || this.ROLE_CASHIER;
+    const isPrimary = userData.id === this.PRIMARY_MANAGER_ID;
+    const role = isPrimary ? this.ROLE_MANAGER : (userData.role || this.ROLE_CASHIER);
     const permissions = userData.permissions || (role === this.ROLE_MANAGER ? ['all'] : ['cashier']);
-    const isActive = userData.isActive !== false;
+    const isActive = isPrimary ? true : userData.isActive !== false;
 
     if (!name) throw new Error('اسم الموظف مطلوب');
     if (!username) throw new Error('اسم المستخدم مطلوب');
@@ -171,6 +173,10 @@ class AuthService {
     const current = this.getCurrentUser();
     if (current && current.id === userId) {
       throw new Error('لا يمكنك حذف الحساب المسجل به حالياً!');
+    }
+
+    if (userId === this.PRIMARY_MANAGER_ID) {
+      throw new Error('حساب المدير الأساسي مينفعش يتحذف');
     }
 
     const allUsers = await db.getAll('users');

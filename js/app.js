@@ -14,7 +14,6 @@ import { localBackupService } from './services/localBackupService.js';
 // استيراد الشاشات
 import { cashierView } from './views/cashierView.js?v=30';
 import { homeView } from './views/homeView.js?v=30';
-import { invoiceView } from './views/invoiceView.js?v=30';
 import { customersView } from './views/customersView.js?v=30';
 import { inventoryView } from './views/inventoryView.js?v=30';
 import { suppliersView } from './views/suppliersView.js?v=30';
@@ -30,7 +29,6 @@ class App {
       login: loginView,
       cashier: cashierView,
       home: homeView,
-      invoice: invoiceView,
       customers: customersView,
       inventory: inventoryView,
       suppliers: suppliersView,
@@ -385,6 +383,8 @@ class App {
 
   async navigate(viewName, params = {}, updateHash = true) {
     let target = viewName;
+    // معالج الصيانة التفصيلي اتلغى: أي رابط ليه بيفتح شاشة الكاشير (ومعاه العميل لو موجود)
+    if (target === 'invoice') target = 'cashier';
 
     // 1. التحقق من تسجيل الدخول
     if (!authService.isLoggedIn()) {

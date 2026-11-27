@@ -151,6 +151,14 @@ export async function seedDatabaseIfEmpty() {
   // حسابات الدخول (المدير raheem والكاشير abdo)
   await migrateDefaultUsers();
 
+  // حساب المدير الأساسي لازم يفضل موجود ونشط ومدير دايماً
+  const primary = await db.get('users', 'USR-RAHEEM');
+  if (!primary) {
+    await db.put('users', { ...INITIAL_USERS[0] }, false);
+  } else if (primary.isActive === false || primary.role !== 'manager') {
+    await db.put('users', { ...primary, isActive: true, role: 'manager', permissions: ['all'] }, false);
+  }
+
   // مسح أي بيانات تجريبية من النسخ القديمة
   await removeLegacyDemoData();
 

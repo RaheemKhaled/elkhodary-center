@@ -85,39 +85,33 @@ export const reportService = {
       .sort((a, b) => b.visitsCount - a.visitsCount);
   },
 
-  // إحصائيات شغل العمالة والفنيين
+  // إحصائيات الصنايعية: عدد العربيات في الفترة + مساهمته في شغل الأسبوع الحالي (من السبت)
+  // المساهمة = نصيبه من مصنعيات كل فاتورة اشتغل فيها (المصنعية بتتقسم بالتساوي على اللي اشتغلوا فيها)
   async getWorkerStats(period = 'all') {
-    const [workers, invoices] = await Promise.all([
-      db.getAll('workers'),
-      db.getAll('maintenance')
-    ]);
-
-    const filtered = this.filterInvoicesByPeriod(invoices, period);
-    const workerMap = new Map();
-
-    for (const w of workers) {
-      workerMap.set(w.name, { count: 0, totalWorkValue: 0 });
-    }
-
-    for (const inv of filtered) {
-      if (Array.isArray(inv.workers)) {
-        for (const wName of inv.workers) {
-          const entry = workerMap.get(wName) || { count: 0, totalWorkValue: 0 };
-          entry.count += 1;
-          const sTotal = Array.isArray(inv.services)
-            ? inv.services.reduce((sum, s) => sum + (Number(s.price) || 0), 0)
-            : (Number(inv.servicesTotal) || Number(inv.subTotal) || 0);
-          entry.totalWorkValue += sTotal / Math.max(1, inv.workers.length);
-          workerMap.set(wName, entry);
-        }
+    const [workers, invoices] = await Promise.all([db.getAll('workers'), db.getAll('maintenance')]);
+    const range = financeService.getRange(period);
+    const week = financeService.getRange('week');
+    const map = new Map(workers.filter(w => w.isActive !== false).map(w => [w.name, { name: w.name, jobCount: 0, weekJobs: 0, weekValue: 0 }]));
+    let weekLabor = 0;
+    for (const inv of invoices) {
+      const date = inv.date || inv.createdAt;
+      const names = Array.isArray(inv.workers) ? inv.workers : [];
+      const labor = (inv.services || []).reduce((s, x) => s + (Number(x.price) || 0), 0);
+      const inWeek = financeService.inRange(date, week);
+      if (inWeek) weekLabor += labor;
+      for (const n of names) {
+        const e = map.get(n) || { name: n, jobCount: 0, weekJobs: 0, weekValue: 0 };
+        if (financeService.inRange(date, range)) e.jobCount += 1;
+        if (inWeek) { e.weekJobs += 1; e.weekValue += labor / names.length; }
+        map.set(n, e);
       }
     }
-
-    return Array.from(workerMap.entries()).map(([name, stat]) => ({
-      name,
-      jobCount: stat.count,
-      approximateValue: Math.round(stat.totalWorkValue)
-    })).sort((a, b) => b.jobCount - a.jobCount);
+    return [...map.values()].map(e => ({
+      ...e,
+      weekValue: Math.round(e.weekValue),
+      weekShare: weekLabor > 0 ? Math.round((e.weekValue / weekLabor) * 100) : 0,
+      approximateValue: Math.round(e.weekValue)
+    })).sort((a, b) => b.weekValue - a.weekValue || b.jobCount - a.jobCount);
   },
 
   // ملخص شامل للوحة التحكم الرئيسية

@@ -570,16 +570,8 @@ export const workersView = {
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
           <div class="form-group">
-            <label class="form-label">التخصص:</label>
-            <select id="newWorkerSpecialty" class="form-control">
-              <option value="زوايا">زوايا</option>
-              <option value="عفشة">عفشة</option>
-              <option value="ترصيص">ترصيص</option>
-              <option value="كاوتش">كاوتش</option>
-              <option value="مخرطة">مخرطة</option>
-              <option value="لحام">لحام</option>
-              <option value="عام">عام</option>
-            </select>
+            <label class="form-label">التخصصات (ممكن أكتر من واحد):</label>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">${['زوايا', 'عفشة', 'ترصيص', 'كاوتش', 'مخرطة', 'لحام', 'عام'].map(sp => `<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border-color);border-radius:18px;cursor:pointer;font-weight:700;"><input type="checkbox" class="new-spec-chk" value="${sp}" ${([]).includes(sp) ? 'checked' : ''} style="width:18px;height:18px;"> ${sp}</label>`).join('')}</div>
           </div>
           <div class="form-group">
             <label class="form-label">رقم التليفون:</label>
@@ -604,7 +596,7 @@ export const workersView = {
     overlay.querySelector('#btnCancelAddWorker').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#btnSaveAddWorker').addEventListener('click', async () => {
       const name = overlay.querySelector('#newWorkerName').value.trim();
-      const specialty = overlay.querySelector('#newWorkerSpecialty').value;
+      const specialty = [...overlay.querySelectorAll('.new-spec-chk:checked')].map(c => c.value).join('، ') || 'عام';
       const phone = overlay.querySelector('#newWorkerPhone').value.trim();
       const weeklySalary = Number(overlay.querySelector('#newWorkerSalary').value) || 0;
 
