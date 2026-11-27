@@ -6,7 +6,7 @@ import { reportService } from '../services/reportService.js';
 import { inventoryService } from '../services/inventoryService.js';
 import { supplierService } from '../services/supplierService.js';
 import { reportPdfService } from '../services/reportPdfService.js';
-import { showExpenseModal, showCollectDebtModal } from '../components/financeModals.js';
+import { showExpenseModal, showCollectDebtModal, confirmDeleteExpense } from '../components/financeModals.js';
 import { PAYMENT_METHODS, EXPENSE_CATEGORIES } from '../services/financeService.js';
 
 export const reportsView = {
@@ -31,6 +31,7 @@ export const reportsView = {
 
     const isCustom = typeof selectedPeriod === 'object';
     const sum = revenue.summary;
+    this.lastSummary = sum;
     this.debtInvoices = new Map(sum.debtors.flatMap(x => x.invoices).map(i => [i.id, i]));
     const periodLabels = {
       today: 'اليوم',
@@ -147,12 +148,16 @@ export const reportsView = {
           </div>
           <div class="card" style="margin: 0;">
             <h2 class="card-title"><span>💸</span><span>مصروفات الفترة (${sum.expenses.length})</span></h2>
-            ${sum.expenses.length ? `<div class="table-container" style="max-height: 420px; overflow-y: auto;"><table class="data-table"><thead><tr><th>التاريخ</th><th>البند</th><th>الطريقة</th><th>المبلغ</th></tr></thead><tbody>
+            ${sum.expenses.length ? `<div class="table-container" style="max-height: 420px; overflow-y: auto;"><table class="data-table"><thead><tr><th>التاريخ</th><th>البند</th><th>الطريقة</th><th>المبلغ</th><th></th></tr></thead><tbody>
               ${sum.expenses.map(e => `<tr>
                 <td>${new Date(e.date).toLocaleDateString('ar-EG')}</td>
                 <td style="font-weight: 700;">${EXPENSE_CATEGORIES[e.category]?.label || e.category}${e.workerName ? ` (${e.workerName})` : ''}${e.description ? `<div style="font-size: 13px; color: var(--text-muted);">${e.description}</div>` : ''}</td>
                 <td>${PAYMENT_METHODS[e.method]?.label || e.method}</td>
                 <td style="color: #F87171; font-weight: 900;">${e.amount} ج.م</td>
+                <td style="white-space: nowrap;">
+                  <button type="button" class="btn btn-secondary btn-rep-exp-edit" data-id="${e.id}" style="min-height: 34px; padding: 2px 10px;" title="تعديل">✏️</button>
+                  <button type="button" class="btn btn-danger btn-rep-exp-del" data-id="${e.id}" style="min-height: 34px; padding: 2px 10px;" title="مسح">🗑️</button>
+                </td>
               </tr>`).join('')}
             </tbody></table></div>` : '<div style="color: var(--text-muted); padding: 12px;">مفيش مصروفات في الفترة دي.</div>'}
           </div>
@@ -316,6 +321,15 @@ export const reportsView = {
       this.render(container, from <= to ? `${from}|${to}` : `${to}|${from}`);
     });
     container.querySelector('#btnRepExpense')?.addEventListener('click', () => showExpenseModal(() => this.render(container, this.period)));
+    const periodExpenses = new Map((this.lastSummary?.expenses || []).map(e => [e.id, e]));
+    container.querySelectorAll('.btn-rep-exp-edit').forEach(b => b.addEventListener('click', () => {
+      const e = periodExpenses.get(b.dataset.id);
+      if (e) showExpenseModal(() => this.render(container, this.period), e);
+    }));
+    container.querySelectorAll('.btn-rep-exp-del').forEach(b => b.addEventListener('click', () => {
+      const e = periodExpenses.get(b.dataset.id);
+      if (e) confirmDeleteExpense(e, () => this.render(container, this.period));
+    }));
     container.querySelectorAll('.btn-rep-collect').forEach(btn => btn.addEventListener('click', async () => {
       const inv = this.debtInvoices?.get(btn.dataset.invId);
       if (inv) showCollectDebtModal(inv, () => this.render(container, this.period));

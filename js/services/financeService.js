@@ -113,6 +113,17 @@ export const financeService = {
     });
   },
 
+  async updateExpense(id, { amount, method, category, workerId = '', workerName = '', description = '' }) {
+    const existing = await db.get('expenses', id);
+    if (!existing) throw new Error('المصروف مش موجود');
+    const value = num(amount);
+    if (value <= 0) throw new Error('اكتب مبلغ المصروف');
+    if (!PAYMENT_METHODS[method]) throw new Error('اختار طريقة الدفع');
+    if (!EXPENSE_CATEGORIES[category]) throw new Error('اختار بند المصروف');
+    if (category === 'labor' && !workerId && !workerName) throw new Error('اختار الصنايعي اللي اتصرفله');
+    return db.put('expenses', { ...existing, amount: value, method, category, workerId, workerName, description: String(description || '').trim() });
+  },
+
   async deleteExpense(id) {
     return db.delete('expenses', id);
   },
