@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // بورت ثابت ومش شائع: تغييره يغيّر مكان البيانات المحلية، فمتغيروش
-const APP_PORT = 48080;
+const APP_PORT = Number(process.env.ALMARKAZ_DEV_PORT) || 48080; // متغير البيئة للتجربة بس
 const INVOICES_FOLDER_NAME = 'فواتير المركز';
 
 let mainWindow = null;

@@ -7,6 +7,8 @@ import { toast } from '../components/toast.js';
 import { syncEngine } from '../sync/syncEngine.js';
 import { financeService } from './financeService.js';
 import { showCollectDebtModal } from '../components/financeModals.js';
+import { modal } from '../components/modal.js';
+import { authService } from './authService.js';
 import { inventoryService } from './inventoryService.js';
 import { customerService } from './customerService.js';
 
@@ -1518,6 +1520,17 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
     run();
   },
 
+  // مسح فاتورة نهائياً (للمدير بس): بتتمسح من الجهاز والشيت وكل الأجهزة، والقطع بترجع المخزن
+  async deleteInvoice(invoiceId) {
+    if (!authService.isManager()) throw new Error('مسح الفواتير للمدير بس');
+    const inv = await db.get('maintenance', invoiceId);
+    if (!inv) throw new Error('الفاتورة مش موجودة');
+    const sales = await db.find('sales', x => x.invoiceId === invoiceId);
+    for (const sale of sales) await db.delete('sales', sale.id);
+    await db.delete('maintenance', invoiceId);
+    return { invoice: inv, salesRemoved: sales.length };
+  },
+
   // سجل كل الفواتير: بحث + فلترة بالتاريخ + فتح أي فاتورة PDF تاني أو طباعتها
   async showInvoicesLogModal(initialQuery = '') {
     const PAGE = 50;
@@ -1538,6 +1551,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
     const allInvoices = (await db.getAll('maintenance'))
       .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
     const isDesktop = this.isDesktop();
+    const isManager = authService.isManager();
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay active';
@@ -1627,6 +1641,7 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
             <button type="button" class="btn btn-secondary" data-act="print" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;">🖨️ طباعة</button>
             <button type="button" class="btn btn-secondary" data-act="thermal" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;">🧾 بون</button>
             <button type="button" class="btn btn-secondary" data-act="wa" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 14px; min-height: 38px;" title="إرسال واتساب">📱</button>
+            ${isManager ? `<button type="button" class="btn btn-danger" data-act="delete" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px;" title="مسح الفاتورة نهائياً">🗑️</button>` : ''}
             ${Number(inv.remainingBalance) > 0 ? `<button type="button" class="btn btn-success" data-act="collect" data-inv-id="${inv.id}" style="padding: 6px 10px; font-size: 13px; min-height: 38px; font-weight: 800;">💰 تحصيل</button>` : ''}
           </div>
         </div>`;
@@ -1685,6 +1700,25 @@ ${invoice.remainingBalance > 0 ? `⚠️ *المتبقي (آجل):* ${invoice.re
       } else if (act === 'print') await this.printInvoice(inv, 'standard');
       else if (act === 'thermal') await this.printInvoice(inv, 'thermal');
       else if (act === 'wa') this.sendWhatsApp(inv);
+      else if (act === 'delete') {
+        const ok = await modal.confirm({
+          title: 'مسح الفاتورة نهائياً',
+          message: `هتتمسح فاتورة ${inv.id} للعميل ${inv.customerName || ''} بمبلغ ${inv.netTotal || 0} ج.م من البرنامج والشيت وكل الأجهزة، والقطع اللي فيها هترجع المخزن. المسح مش بيترجع. متأكد؟`,
+          confirmText: 'أيوه، امسحها',
+          cancelText: 'لأ',
+          type: 'danger'
+        });
+        if (!ok) return;
+        try {
+          await this.deleteInvoice(inv.id);
+          const i = allInvoices.findIndex(x => x.id === inv.id);
+          if (i >= 0) allInvoices.splice(i, 1);
+          toast.success(`اتمسحت الفاتورة ${inv.id}`);
+          apply();
+        } catch (err) {
+          toast.error(err.message);
+        }
+      }
       else if (act === 'collect') showCollectDebtModal(inv, (updated) => {
         Object.assign(inv, updated);
         apply();

@@ -4,7 +4,7 @@
  * تضمن تحميل أحدث التعديلات فوراً وتعمل بكفاءة تامة عند انقطاع الاتصال
  */
 
-const CACHE_NAME = 'almarkaz-cache-v34';
+const CACHE_NAME = 'almarkaz-cache-v35';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
